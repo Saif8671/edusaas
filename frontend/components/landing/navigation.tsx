@@ -3,7 +3,6 @@
 import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Menu, X } from "lucide-react";
-import { BrandLogo } from "@/components/brand-logo";
 
 const navLinks = [
   { name: "Landing", href: "#" },
@@ -47,10 +46,11 @@ export function Navigation() {
         >
           {/* Logo */}
           <a href="#" className="flex items-center group">
-            <BrandLogo
-              className={`translate-y-0.5 transition-all duration-500 ${isScrolled ? "w-28" : "w-36"}`}
-              priority
-            />
+            <span
+              className={`font-display text-xl font-semibold tracking-tight text-foreground transition-all duration-500 ${isScrolled ? "text-lg" : "text-xl"}`}
+            >
+              EduLMS
+            </span>
           </a>
 
           {/* Desktop Navigation */}

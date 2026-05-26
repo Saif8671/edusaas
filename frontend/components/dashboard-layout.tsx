@@ -52,7 +52,6 @@ import {
   SheetTrigger,
 } from "@/components/ui/sheet";
 import { cn } from "@/lib/utils";
-import { BrandLogo } from "@/components/brand-logo";
 
 type NavItem = {
   name: string;
@@ -267,10 +266,9 @@ export function DashboardLayout({ children }: { children: ReactNode }) {
       >
         <div className="flex h-20 items-center justify-between gap-3 border-b px-5">
           <div className="flex items-center gap-3 overflow-hidden">
-            <BrandLogo
-              className={`translate-y-0.5 transition-all duration-300 ${collapsed ? "w-16" : "w-32"}`}
-              priority
-            />
+            <span className="font-display text-lg font-semibold tracking-tight text-foreground">
+              {collapsed ? "EL" : "EduLMS"}
+            </span>
           </div>
           <Button variant="ghost" size="icon" onClick={() => setCollapsed((value) => !value)}>
             {collapsed ? <ChevronRight className="h-4 w-4" /> : <ChevronLeft className="h-4 w-4" />}
@@ -326,7 +324,9 @@ export function DashboardLayout({ children }: { children: ReactNode }) {
                 </SheetTrigger>
                 <SheetContent side="left" className="w-[300px] overflow-y-auto p-0">
                   <div className="border-b px-5 py-5">
-                    <BrandLogo className="w-36 translate-y-0.5" priority />
+                    <span className="font-display text-2xl font-semibold tracking-tight text-foreground">
+                      EduLMS
+                    </span>
                   </div>
                   <div className="px-4 py-4">
                     <div className="relative">

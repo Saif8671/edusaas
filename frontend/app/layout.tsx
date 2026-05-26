@@ -8,10 +8,6 @@ export const metadata: Metadata = {
   title: 'EduLMS',
   description: 'An education management platform for admins, faculty, students, and parents.',
   generator: 'v0.app',
-  icons: {
-    icon: '/edulms-logo-dark.png',
-    apple: '/edulms-logo-dark.png',
-  },
 }
 
 export default function RootLayout({
