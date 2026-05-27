@@ -72,7 +72,17 @@ npm run dev
 
 The API runs on `http://localhost:5000` by default.
 
-### 5. Useful scripts
+### 5. Deploy the frontend on Netlify
+
+Deploy the `frontend/` folder as the site root.
+
+- Build command: `npm run build`
+- Publish directory: `.next`
+- Netlify plugin: `@netlify/plugin-nextjs`
+
+Add the frontend environment variables in Netlify's site settings before deploying, especially the Razorpay and Zoom values listed above.
+
+### 6. Useful scripts
 
 Frontend:
 
@@ -131,4 +141,3 @@ Backend:
 
 - The repository also includes supporting documentation in `docs/` for architecture, database design, API flow, testing, scaling, security, and deployment.
 - The backend exposes a health endpoint at `/api/health`.
-
