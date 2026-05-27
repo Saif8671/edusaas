@@ -1,6 +1,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
+import { useSearchParams } from "next/navigation";
 import {
   ArrowRight,
   CheckCircle2,
@@ -139,6 +140,7 @@ async function createOrder(invoice: InvoiceData, referenceNote?: string) {
 
   return (await response.json()) as {
     demo: boolean;
+    keyId: string | null;
     order: {
       id: string;
       amount: number;
@@ -168,12 +170,14 @@ async function verifyPayment(response: RazorpayPaymentResponse) {
 
 export default function ParentFees() {
   const { currentUser, students, invoices, updateInvoice, addNotification } = useAppStore();
+  const searchParams = useSearchParams();
   const [selectedInvoiceId, setSelectedInvoiceId] = useState<string | null>(null);
   const [selectedMethod, setSelectedMethod] = useState<(typeof paymentMethods)[number]["id"]>("upi");
   const [copied, setCopied] = useState(false);
   const [processing, setProcessing] = useState(false);
   const [paymentReference, setPaymentReference] = useState("");
   const [checkoutStatus, setCheckoutStatus] = useState("");
+  const razorpayPublicKey = useMemo(() => process.env.NEXT_PUBLIC_RAZORPAY_KEY_ID ?? "", []);
 
   const childProfile = useMemo(
     () => students.find((student) => student.parentName === currentUser?.name) ?? students[0],
@@ -182,14 +186,17 @@ export default function ParentFees() {
 
   const pendingInvoices = useMemo(() => invoices.filter((invoice) => invoice.status !== "Paid"), [invoices]);
 
+  const invoiceFromQuery = searchParams.get("invoice");
+
   const selectedInvoice = useMemo(() => {
     return (
+      invoices.find((invoice) => invoice.id === invoiceFromQuery) ??
       invoices.find((invoice) => invoice.id === selectedInvoiceId) ??
       pendingInvoices[0] ??
       invoices[0] ??
       null
     );
-  }, [invoices, pendingInvoices, selectedInvoiceId]);
+  }, [invoiceFromQuery, invoices, pendingInvoices, selectedInvoiceId]);
 
   const totalDue = pendingInvoices.reduce((sum, invoice) => sum + invoice.amount, 0);
 
@@ -206,7 +213,7 @@ export default function ParentFees() {
 
       const orderResponse = await createOrder(invoice, paymentReference);
 
-      if (orderResponse.demo || !process.env.NEXT_PUBLIC_RAZORPAY_KEY_ID) {
+      if (orderResponse.demo) {
         updateInvoice(invoice.id, "Paid");
         addNotification("Demo payment captured", `Invoice ${invoice.id} was marked paid in demo mode.`);
         setCheckoutStatus(`Demo settlement complete for ${invoice.id}.`);
@@ -220,7 +227,7 @@ export default function ParentFees() {
       }
 
       const checkout = new window.Razorpay({
-        key: process.env.NEXT_PUBLIC_RAZORPAY_KEY_ID,
+        key: orderResponse.keyId ?? razorpayPublicKey,
         amount: orderResponse.order.amount,
         currency: orderResponse.order.currency,
         name: "EduLMS",

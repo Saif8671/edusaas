@@ -28,6 +28,7 @@ export async function POST(request: Request) {
     if (!keyId || !keySecret) {
       return NextResponse.json({
         demo: true,
+        keyId: null,
         order: {
           id: `order_demo_${Date.now()}`,
           amount: Math.round(amount * 100),
@@ -61,7 +62,7 @@ export async function POST(request: Request) {
     }
 
     const order = await response.json();
-    return NextResponse.json({ demo: false, order });
+    return NextResponse.json({ demo: false, keyId, order });
   } catch (error) {
     return NextResponse.json(
       {

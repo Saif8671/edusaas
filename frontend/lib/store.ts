@@ -100,6 +100,10 @@ export interface LiveSessionData {
   time: string;
   status: "Scheduled" | "Live" | "Completed";
   notes: string;
+  meetingId?: string;
+  passcode?: string;
+  startUrl?: string;
+  provider?: "Zoom" | "Google Meet" | "Microsoft Teams" | "Custom";
 }
 
 export interface Announcement {
@@ -235,8 +239,8 @@ export const useAppStore = create<AppStore>()(
       ],
 
       liveSessions: [
-        { id: "LIVE-1", title: "Quantum States Live Revision", batch: "QC-2026", platform: "Google Meet", link: "https://meet.google.com/abc-defg-hij", date: "2026-05-28", time: "10:00 AM", status: "Scheduled", notes: "Revision before unit test 2" },
-        { id: "LIVE-2", title: "AI Model Debugging Lab", batch: "AI-Alpha", platform: "Zoom", link: "https://zoom.us/j/123456789", date: "2026-05-29", time: "2:00 PM", status: "Scheduled", notes: "Hands-on model troubleshooting" },
+        { id: "LIVE-1", title: "Quantum States Live Revision", batch: "QC-2026", platform: "Google Meet", link: "https://meet.google.com/abc-defg-hij", date: "2026-05-28", time: "10:00 AM", status: "Scheduled", notes: "Revision before unit test 2", provider: "Google Meet" },
+        { id: "LIVE-2", title: "AI Model Debugging Lab", batch: "AI-Alpha", platform: "Zoom", link: "https://zoom.us/j/123456789", date: "2026-05-29", time: "2:00 PM", status: "Scheduled", notes: "Hands-on model troubleshooting", provider: "Zoom", meetingId: "123456789", passcode: "123456" },
       ],
 
       login: (email, role) => {

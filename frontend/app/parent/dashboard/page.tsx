@@ -1,6 +1,7 @@
 "use client";
 
 import { useAppStore } from "@/lib/store";
+import { useRouter } from "next/navigation";
 import { 
   Users, CreditCard, Award, Calendar, DollarSign, Wallet,
   TrendingUp, Download, Eye, ShieldAlert, Sparkles, CheckCircle2
@@ -19,15 +20,15 @@ const marksData = [
 ];
 
 export default function ParentDashboard() {
-  const { students, invoices, updateInvoice, addNotification } = useAppStore();
+  const router = useRouter();
+  const { students, invoices } = useAppStore();
 
   const childProfile = students.find(s => s.parentName === "A. Rahman") || students[0];
   const pendingInvoices = invoices.filter(inv => inv.status !== "Paid");
   const totalDueAmount = pendingInvoices.reduce((sum, item) => sum + item.amount, 0);
 
   const handlePay = (id: string) => {
-    updateInvoice(id, "Paid");
-    addNotification("Payment Received", `Invoice ${id} paid successfully`);
+    router.push(`/parent/fees?invoice=${encodeURIComponent(id)}`);
   };
 
   return (
