@@ -116,6 +116,25 @@ export interface Announcement {
   recipients: Array<"Faculty" | "Students" | "Parents" | "Institute">;
 }
 
+export type MessageAudience = "Students" | "Parents";
+export type MessageScope = "All" | "Batch" | "Student";
+export type MessagePriority = "Normal" | "Important" | "Urgent";
+
+export interface CommunicationMessage {
+  id: string;
+  title: string;
+  content: string;
+  sender: string;
+  senderRole: RoleType;
+  sentAt: string;
+  audience: MessageAudience[];
+  scope: MessageScope;
+  targetBatch?: string;
+  targetStudentId?: string;
+  targetStudentName?: string;
+  priority: MessagePriority;
+}
+
 export interface NotificationItem {
   id: string;
   title: string;
@@ -129,6 +148,7 @@ interface AppStore {
   activeRole: RoleType | null;
   notifications: NotificationItem[];
   announcements: Announcement[];
+  messages: CommunicationMessage[];
   students: StudentData[];
   faculty: FacultyData[];
   batches: BatchData[];
@@ -143,6 +163,7 @@ interface AppStore {
   setRole: (role: RoleType) => void;
   markAllNotificationsRead: () => void;
   addNotification: (title: string, message: string) => void;
+  sendMessage: (message: Omit<CommunicationMessage, "id" | "sentAt">) => void;
   
   // Entity actions
   addStudent: (student: Omit<StudentData, "id" | "attendancePct" | "progress">) => void;
@@ -204,6 +225,31 @@ export const useAppStore = create<AppStore>()(
         { id: "a1", title: "End Semester Exams Schedule", content: "The final term exam starts from next Monday. Please download the hall ticket.", date: "2026-06-01", category: "Exam", sender: "Academic Head", recipients: ["Students", "Parents", "Faculty", "Institute"] },
         { id: "a2", title: "Placement Drive: TechCorp", content: "TechCorp is visiting for campus placements. Applications open till Wednesday.", date: "2026-05-30", category: "Placement", sender: "Training Coordinator", recipients: ["Students", "Institute"] },
         { id: "a3", title: "Summer Internship Guidelines", content: "Guidelines for mandatory summer projects have been posted under course materials.", date: "2026-05-25", category: "General", sender: "Dean Academics", recipients: ["Students", "Faculty"] },
+      ],
+      messages: [
+        {
+          id: "m1",
+          title: "Welcome to the new term",
+          content: "Please review the updated timetable and keep attendance above the 75% threshold.",
+          sender: "Dr. Albert Stark",
+          senderRole: "FACULTY",
+          sentAt: "2026-05-27T09:00:00.000Z",
+          audience: ["Students", "Parents"],
+          scope: "All",
+          priority: "Important",
+        },
+        {
+          id: "m2",
+          title: "Parent meeting reminder",
+          content: "Parents of QC-2026 students are invited for a short progress review this Friday at 5 PM.",
+          sender: "Prof. Sarah Connor",
+          senderRole: "FACULTY",
+          sentAt: "2026-05-26T13:30:00.000Z",
+          audience: ["Parents"],
+          scope: "Batch",
+          targetBatch: "QC-2026",
+          priority: "Normal",
+        },
       ],
       students: [
         { id: "STU-001", name: "Saif Rahman", email: "saif@edu.com", phone: "+91 9876543210", course: "Advanced Quantum Computing", batch: "QC-2026", parentName: "A. Rahman", status: "Active", attendancePct: 88, progress: 65 },
@@ -273,6 +319,28 @@ export const useAppStore = create<AppStore>()(
           ...state.notifications
         ]
       })),
+      sendMessage: (message) => set((state) => {
+        const sentAt = new Date().toISOString();
+        const createdMessage: CommunicationMessage = {
+          ...message,
+          id: `m-${Date.now()}`,
+          sentAt,
+        };
+
+        return {
+          messages: [createdMessage, ...(state.messages ?? [])],
+          notifications: [
+            {
+              id: String(Date.now() + 1),
+              title: "Message sent",
+              message: `${createdMessage.title} was delivered to ${createdMessage.audience.join(" and ")}.`,
+              time: "Just now",
+              read: false,
+            },
+            ...state.notifications,
+          ],
+        };
+      }),
 
       addStudent: (s) => set((state) => {
         const id = "STU-" + String(Math.floor(100 + Math.random() * 900));
@@ -435,11 +503,12 @@ export const useAppStore = create<AppStore>()(
     }),
     {
       name: "education-platform-store",
-      version: 2,
+      version: 3,
       migrate: (persistedState) => {
         const state = persistedState as Partial<AppStore> & {
           announcements?: Partial<Announcement>[];
           assignments?: Partial<AssignmentData>[];
+          messages?: Partial<CommunicationMessage>[];
         };
 
         return {
@@ -462,6 +531,20 @@ export const useAppStore = create<AppStore>()(
             grade: assignment.grade,
             feedback: assignment.feedback,
             submissions: assignment.submissions ?? [],
+          })),
+          messages: (state.messages ?? []).map((message) => ({
+            id: message.id ?? `m-${Date.now()}`,
+            title: message.title ?? "",
+            content: message.content ?? "",
+            sender: message.sender ?? "Academic Admin",
+            senderRole: message.senderRole ?? "ADMIN",
+            sentAt: message.sentAt ?? new Date().toISOString(),
+            audience: message.audience ?? ["Students"],
+            scope: message.scope ?? "All",
+            targetBatch: message.targetBatch,
+            targetStudentId: message.targetStudentId,
+            targetStudentName: message.targetStudentName,
+            priority: message.priority ?? "Normal",
           })),
         } as Partial<AppStore>;
       },

@@ -134,6 +134,7 @@ const roleSections: Record<RoleType, NavSection[]> = {
         { name: "Attendance", href: "/student/attendance", icon: CalendarDays, hint: "Track presence" },
         { name: "Certificates", href: "/student/certificates", icon: Award, hint: "Completed" },
         { name: "Community", href: "/student/community", icon: UsersRound, hint: "Peer space" },
+        { name: "Messages", href: "/student/messages", icon: MessageSquare, hint: "Faculty updates" },
         { name: "Live Classes", href: "/student/live", icon: Video, hint: "Zoom sessions" },
         { name: "Calendar", href: "/student/calendar", icon: CalendarDays, hint: "Upcoming" },
       ],
@@ -161,6 +162,7 @@ const roleSections: Record<RoleType, NavSection[]> = {
       items: [
         { name: "Fees", href: "/parent/fees", icon: CreditCard, hint: "Payments" },
         { name: "Certificates", href: "/parent/certificates", icon: Award, hint: "Issue list" },
+        { name: "Messages", href: "/parent/messages", icon: MessageSquare, hint: "Faculty notes" },
         { name: "Notifications", href: "/parent/notifications", icon: Bell, hint: "Alerts" },
         { name: "Profile", href: "/parent/profile", icon: User, hint: "Contact info" },
         { name: "Settings", href: "/parent/settings", icon: Settings, hint: "Preferences" },
