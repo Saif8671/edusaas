@@ -116,18 +116,6 @@ importers:
       embla-carousel-react:
         specifier: 8.5.1
         version: 8.5.1(react@19.2.0)
-      expo:
-        specifier: latest
-        version: 56.0.4(@babel/core@7.29.0)(@expo/dom-webview@56.0.5)(react-dom@19.2.0(react@19.2.0))(react-native@0.85.3(@babel/core@7.29.0)(@types/react@19.2.15)(react@19.2.0))(react@19.2.0)(typescript@5.9.3)
-      expo-asset:
-        specifier: latest
-        version: 56.0.14(expo@56.0.4)(react-native@0.85.3(@babel/core@7.29.0)(@types/react@19.2.15)(react@19.2.0))(react@19.2.0)(typescript@5.9.3)
-      expo-file-system:
-        specifier: latest
-        version: 56.0.7(expo@56.0.4)(react-native@0.85.3(@babel/core@7.29.0)(@types/react@19.2.15)(react@19.2.0))
-      expo-gl:
-        specifier: latest
-        version: 56.0.5(expo@56.0.4)(react-dom@19.2.0(react@19.2.0))(react-native@0.85.3(@babel/core@7.29.0)(@types/react@19.2.15)(react@19.2.0))(react@19.2.0)
       geist:
         specifier: 1.7.0
         version: 1.7.0(next@16.0.10(@babel/core@7.29.0)(babel-plugin-react-compiler@1.0.0)(react-dom@19.2.0(react@19.2.0))(react@19.2.0))
@@ -155,9 +143,6 @@ importers:
       react-hook-form:
         specifier: ^7.60.0
         version: 7.76.1(react@19.2.0)
-      react-native:
-        specifier: latest
-        version: 0.85.3(@babel/core@7.29.0)(@types/react@19.2.15)(react@19.2.0)
       react-resizable-panels:
         specifier: ^2.1.7
         version: 2.1.9(react-dom@19.2.0(react@19.2.0))(react@19.2.0)
