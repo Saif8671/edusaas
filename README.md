@@ -41,6 +41,7 @@ npm install
 Frontend environment variables are documented in `frontend/.env.example`. At minimum, set:
 
 - `NEXT_PUBLIC_RAZORPAY_KEY_ID`
+- `NEXT_PUBLIC_BACKEND_URL`
 - `RAZORPAY_KEY_ID`
 - `RAZORPAY_KEY_SECRET`
 - `RESEND_API_KEY`
@@ -55,6 +56,8 @@ Frontend environment variables are documented in `frontend/.env.example`. At min
 - `ZOOM_TIMEZONE`
 
 For WhatsApp alerts, the Twilio WhatsApp sandbox or a WhatsApp-enabled Twilio number must be configured. For email alerts, set a verified Resend sender in `RESEND_FROM_EMAIL`.
+
+Set `NEXT_PUBLIC_BACKEND_URL` to the Express backend URL so the student AI study assistant can reach `/api/study-assistant` from the browser. For local development, `http://localhost:5000` is the default.
 
 For the backend, set:
 
@@ -114,6 +117,7 @@ Backend:
 - Certificate generation and certificate viewing pages
 - Fee invoice management and Razorpay-backed payment checkout
 - Zoom meeting creation flow for live classes
+- Student AI study assistant with chat, source selection, and study studio outputs
 - Notifications and activity updates across the platform
 - Shared client-side state management with persistence
 - Security-focused backend middleware, including Helmet, CORS, and rate limiting

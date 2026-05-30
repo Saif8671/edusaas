@@ -1,4 +1,5 @@
 "use client";
+import { PageHeader } from "@/components/app/page-header";
 
 import { useAppStore } from "@/lib/store";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
@@ -8,11 +9,8 @@ export default function ParentPerformance() {
   const child = students.find(s => s.parentName === "A. Rahman") || students[0];
 
   return (
-    <div className="space-y-6">
-      <div>
-        <h2 className="text-3xl font-bold tracking-tight">Academic Performance</h2>
-        <p className="text-muted-foreground">Monitor grading indexes</p>
-      </div>
+    <div className="page-shell">
+      <PageHeader hideTitle title="Academic Performance" description="Monitor grading indexes" />
 
       <Card className="glass-card border bg-card/40 backdrop-blur-md">
         <CardHeader>

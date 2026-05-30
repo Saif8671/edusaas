@@ -1,4 +1,5 @@
 "use client";
+import { PageHeader } from "@/components/app/page-header";
 
 import { useAppStore } from "@/lib/store";
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from "@/components/ui/card";
@@ -8,11 +9,8 @@ export default function FacultyCourses() {
   const { courses } = useAppStore();
 
   return (
-    <div className="space-y-6">
-      <div>
-        <h2 className="text-3xl font-bold tracking-tight">My Teaching Courses</h2>
-        <p className="text-muted-foreground">Manage your curriculum syllabi and course contents</p>
-      </div>
+    <div className="page-shell">
+      <PageHeader hideTitle title="My Teaching Courses" description="Manage your curriculum syllabi and course contents" />
 
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
         {courses.filter(c => c.published).map(course => (

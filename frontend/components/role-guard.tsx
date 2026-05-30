@@ -3,7 +3,8 @@
 import { useEffect, useState } from "react";
 import { useRouter, usePathname } from "next/navigation";
 import { useAppStore, RoleType } from "@/lib/store";
-import { Loader2 } from "lucide-react";
+import { LoadingShell } from "@/components/app/loading-shell";
+import { routes } from "@/lib/routes";
 
 interface RoleGuardProps {
   children: React.ReactNode;
@@ -23,31 +24,38 @@ export function RoleGuard({ children, allowedRoles }: RoleGuardProps) {
   useEffect(() => {
     if (!mounted) return;
 
-    // If not logged in and not on auth paths, redirect to login
-    const isAuthPath = pathname.startsWith("/login") || 
-                       pathname.startsWith("/register") || 
-                       pathname.startsWith("/forgot-password") ||
-                       pathname === "/";
+    const isAuthPath =
+      pathname.startsWith("/login") ||
+      pathname.startsWith("/register") ||
+      pathname.startsWith("/forgot-password") ||
+      pathname === "/";
 
     if (!currentUser && !isAuthPath) {
-      router.push("/login");
+      router.push(routes.login);
       return;
     }
 
-    // If logged in but accessing a page not allowed for their activeRole
     if (currentUser && allowedRoles && activeRole && !allowedRoles.includes(activeRole)) {
-      // Redirect to correct dashboard based on role
-      const dashRedirect = activeRole.toLowerCase();
-      router.push(`/${dashRedirect}/dashboard`);
+      router.push(routes[activeRole.toLowerCase() as "admin" | "faculty" | "student" | "parent"].dashboard);
     }
   }, [currentUser, activeRole, pathname, mounted, allowedRoles, router]);
 
   if (!mounted) {
-    return (
-      <div className="flex h-screen w-screen items-center justify-center bg-background">
-        <Loader2 className="h-8 w-8 animate-spin text-primary" />
-      </div>
-    );
+    return <LoadingShell label="Checking access…" />;
+  }
+
+  const isAuthPath =
+    pathname.startsWith("/login") ||
+    pathname.startsWith("/register") ||
+    pathname.startsWith("/forgot-password") ||
+    pathname === "/";
+
+  if (!currentUser && !isAuthPath) {
+    return <LoadingShell label="Redirecting to sign in…" />;
+  }
+
+  if (currentUser && allowedRoles && activeRole && !allowedRoles.includes(activeRole)) {
+    return <LoadingShell label="Redirecting to your workspace…" />;
   }
 
   return <>{children}</>;

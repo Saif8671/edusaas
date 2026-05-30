@@ -1,0 +1,426 @@
+"use client";
+
+import { useMemo, useState } from "react";
+import {
+  ArrowRight,
+  Building2,
+  CalendarDays,
+  CheckCheck,
+  ChevronDown,
+  ChevronLeft,
+  ChevronRight,
+  CircleCheck,
+  CircleDashed,
+  CircleX,
+  ClipboardList,
+  Clock3,
+  Copy,
+  Download,
+  GraduationCap,
+  Info,
+  MessageSquare,
+  ShieldCheck,
+  Upload,
+  UserCog,
+  Users,
+  Users2,
+  FileDown,
+} from "lucide-react";
+import {
+  CartesianGrid,
+  Line,
+  LineChart,
+  ResponsiveContainer,
+  Tooltip,
+  XAxis,
+  YAxis,
+} from "recharts";
+import { useAppStore } from "@/lib/store";
+import { Button } from "@/components/ui/button";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Progress } from "@/components/ui/progress";
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { cn } from "@/lib/utils";
+import { toast } from "@/lib/toast";
+import { adminBatchCards, attendanceOverview, facultyAttendanceRows, facultyTrend, leaveRequests, monthlyTrend, riskStudents, studentAttendanceRows } from "./constants";
+import {
+  AttendanceChoice,
+  AttendanceLegend,
+  AttendanceTableShell,
+  BatchMiniCard,
+  CalendarGrid,
+  ModeTabs,
+  QuickActionTile,
+  RiskStudentRow,
+  SectionHeader,
+  SummaryCard,
+} from "./components/attendance-ui";
+import type { AttendanceDashboardProps, AttendanceStatus, SummaryMetric } from "./types";
+import { formatMonthLabel, formatShortDate, sendAttendanceAlert } from "./utils";
+
+
+export function AdminAttendanceView({ title, subtitle, actionLabel, secondaryActionLabel, tertiaryActionLabel }: AttendanceDashboardProps) {
+  const totalFaculty = useAppStore((state) => state.faculty.length);
+  const totalStudents = useAppStore((state) => state.students.length);
+  const batches = useAppStore((state) => state.batches);
+  const students = useAppStore((state) => state.students);
+  const addNotification = useAppStore((state) => state.addNotification);
+  const [calendarDate, setCalendarDate] = useState(() => new Date("2026-05-30T12:00:00+05:30"));
+  const [sendingAlertFor, setSendingAlertFor] = useState<string | null>(null);
+  const selectedBatch = batches.find((batch) => batch.id === "QC-2026") ?? batches[0];
+
+  const handleNotifyParent = async (rollNo: string) => {
+    const student = students.find((candidate) => candidate.id === rollNo);
+
+    if (!student) {
+      addNotification("Attendance alert failed", "Could not locate the selected student record.");
+      return;
+    }
+
+    try {
+      setSendingAlertFor(rollNo);
+      await sendAttendanceAlert({
+        id: student.id,
+        name: student.name,
+        batch: student.batch,
+        attendancePct: student.attendancePct,
+        course: student.course,
+        parentName: student.parentName,
+        parentEmail: student.parentEmail,
+        parentPhone: student.parentPhone,
+        fallbackEmail: student.email,
+        fallbackPhone: student.phone,
+      });
+      addNotification(
+        "Parent alert sent",
+        `${student.name}'s attendance update was sent through WhatsApp and email.`,
+      );
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "Unable to send the attendance alert.";
+      addNotification("Attendance alert failed", message);
+    } finally {
+      setSendingAlertFor(null);
+    }
+  };
+
+  const metrics: SummaryMetric[] = [
+    {
+      label: "Student Attendance Today",
+      value: "91%",
+      detail: "420 / 460 Present",
+      icon: Users2,
+      tone: "bg-emerald-100 text-emerald-600",
+      progress: 91,
+      progressClass: "text-emerald-600",
+    },
+    {
+      label: "Faculty Attendance Today",
+      value: "95%",
+      detail: "18 / 19 Present",
+      icon: GraduationCap,
+      tone: "bg-blue-100 text-blue-600",
+      progress: 95,
+      progressClass: "text-blue-600",
+    },
+    {
+      label: "Total Students",
+      value: String(totalStudents),
+      detail: "Across 4 Batches",
+      icon: Users,
+      tone: "bg-violet-100 text-violet-600",
+    },
+    {
+      label: "Total Faculty",
+      value: String(totalFaculty),
+      detail: "Across All Departments",
+      icon: UserCog,
+      tone: "bg-orange-100 text-orange-600",
+    },
+  ];
+
+  return (
+    <div className="page-shell min-w-0">
+        <section className="page-section rounded-2xl border bg-card p-4 shadow-sm sm:p-5">
+          <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+            <p className="max-w-2xl text-sm text-muted-foreground">{subtitle}</p>
+            <div className="flex flex-wrap items-center gap-2">
+              <Button variant="outline" className="h-10 rounded-lg">
+                <CalendarDays className="h-4 w-4" />
+                {formatShortDate(calendarDate)}
+                <ChevronDown className="h-4 w-4" />
+              </Button>
+              <Button className="h-10 rounded-lg px-4">
+                <Download className="h-4 w-4" />
+                {tertiaryActionLabel}
+              </Button>
+            </div>
+          </div>
+
+          <div className="mt-5 flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
+            <ModeTabs mode="admin" />
+            <Button variant="ghost" size="sm" className="h-9 rounded-lg text-primary">
+              <Info className="h-4 w-4" />
+              Attendance Guide
+            </Button>
+          </div>
+
+          <div className="mt-6 grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+            {metrics.map((metric) => (
+              <SummaryCard key={metric.label} {...metric} />
+            ))}
+          </div>
+        </section>
+
+        <Card className="attendance-panel">
+          <CardHeader className="px-4 pb-3 pt-4 sm:px-5 sm:pt-5">
+            <SectionHeader title="Batch overview" actionLabel="View all batches" />
+          </CardHeader>
+          <CardContent className="grid gap-3 px-4 pb-4 sm:grid-cols-2 sm:px-5 sm:pb-5 xl:grid-cols-4">
+            {adminBatchCards.map((batch) => (
+              <BatchMiniCard key={batch.name} batch={batch} />
+            ))}
+          </CardContent>
+        </Card>
+
+        <div className="grid gap-6 lg:grid-cols-12">
+          <Card className="attendance-panel lg:col-span-8">
+            <CardHeader className="flex flex-col gap-3 px-4 pb-3 pt-4 sm:flex-row sm:items-center sm:justify-between sm:px-5 sm:pt-5">
+              <SectionHeader title={`Take attendance — ${selectedBatch?.id ?? "QC-2026"}`} />
+              <Button variant="outline" size="sm" className="h-9 shrink-0 rounded-lg">
+                <ChevronDown className="h-4 w-4" />
+                {secondaryActionLabel}
+              </Button>
+            </CardHeader>
+            <AttendanceTableShell
+              footer={
+                <Button className="h-10 w-full rounded-lg">
+                  <ShieldCheck className="h-4 w-4" />
+                  Save attendance
+                </Button>
+              }
+            >
+              <Table>
+                <TableHeader className="sticky top-0 z-10 bg-card">
+                  <TableRow className="hover:bg-transparent">
+                    <TableHead className="w-10 px-3 py-3 text-xs text-muted-foreground">#</TableHead>
+                    <TableHead className="px-3 py-3 text-xs text-muted-foreground">Student</TableHead>
+                    <TableHead className="hidden px-3 py-3 text-xs text-muted-foreground sm:table-cell">Roll no.</TableHead>
+                    <TableHead className="px-2 py-3 text-center text-xs text-muted-foreground">In</TableHead>
+                    <TableHead className="px-2 py-3 text-center text-xs text-muted-foreground">Out</TableHead>
+                    <TableHead className="px-2 py-3 text-center text-xs text-muted-foreground">Late</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {studentAttendanceRows.map((student, index) => (
+                    <TableRow key={student.rollNo}>
+                      <TableCell className="px-3 py-3 text-sm text-muted-foreground">{index + 1}</TableCell>
+                      <TableCell className="px-3 py-3 text-sm font-medium">{student.name}</TableCell>
+                      <TableCell className="hidden px-3 py-3 text-sm text-muted-foreground sm:table-cell">{student.rollNo}</TableCell>
+                      <TableCell className="px-2 py-3 text-center">
+                        <AttendanceChoice status="present" active={student.status === "present"} />
+                      </TableCell>
+                      <TableCell className="px-2 py-3 text-center">
+                        <AttendanceChoice status="absent" active={student.status === "absent"} />
+                      </TableCell>
+                      <TableCell className="px-2 py-3 text-center">
+                        <AttendanceChoice status="late" active={student.status === "late"} />
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            </AttendanceTableShell>
+          </Card>
+
+          <div className="flex flex-col gap-6 lg:col-span-4">
+            <Card className="attendance-panel">
+              <CardHeader className="px-4 pb-3 pt-4 sm:px-5 sm:pt-5">
+                <SectionHeader title="Students at risk" actionLabel="View all" />
+              </CardHeader>
+              <CardContent className="space-y-3 px-4 pb-4 sm:px-5 sm:pb-5">
+                {riskStudents.map((student) => (
+                  <RiskStudentRow
+                    key={student.rollNo}
+                    name={student.name}
+                    rollNo={student.rollNo}
+                    pct={student.pct}
+                    sending={sendingAlertFor === student.rollNo}
+                    onNotify={() => handleNotifyParent(student.rollNo)}
+                  />
+                ))}
+              </CardContent>
+            </Card>
+
+            <Card className="attendance-panel">
+              <CardHeader className="px-4 pb-3 pt-4 sm:px-5 sm:pt-5">
+                <SectionHeader title="Quick actions" />
+              </CardHeader>
+              <CardContent className="grid grid-cols-2 gap-2 px-4 pb-4 sm:px-5 sm:pb-5">
+                <QuickActionTile label="Bulk upload" helper="CSV / Excel" icon={Upload} tone="bg-violet-500/15 text-violet-600" />
+                <QuickActionTile label="Copy yesterday" helper="Reuse last day" icon={Copy} tone="bg-blue-500/15 text-blue-600" />
+                <QuickActionTile label="Mark all present" helper="Entire class" icon={CheckCheck} tone="bg-emerald-500/15 text-emerald-600" />
+                <QuickActionTile label="Export report" helper="Download" icon={FileDown} tone="bg-orange-500/15 text-orange-600" />
+              </CardContent>
+            </Card>
+          </div>
+
+          <Card className="attendance-panel flex flex-col lg:col-span-6">
+            <CardHeader className="px-4 pb-3 pt-4 sm:px-5 sm:pt-5">
+              <SectionHeader title="Attendance trend" />
+            </CardHeader>
+            <CardContent className="h-[260px] min-h-[240px] flex-1 px-3 pb-4 sm:px-5 sm:pb-5">
+              <ResponsiveContainer width="100%" height="100%">
+                <LineChart data={monthlyTrend} margin={{ top: 8, right: 8, left: -12, bottom: 0 }}>
+                  <CartesianGrid strokeDasharray="3 3" className="stroke-border" opacity={0.5} />
+                  <XAxis dataKey="label" axisLine={false} tickLine={false} tick={{ fontSize: 11 }} />
+                  <YAxis axisLine={false} tickLine={false} tick={{ fontSize: 11 }} domain={[60, 100]} />
+                  <Tooltip />
+                  <Line type="monotone" dataKey="value" stroke="var(--primary)" strokeWidth={2.5} dot={{ r: 3, strokeWidth: 0 }} />
+                </LineChart>
+              </ResponsiveContainer>
+            </CardContent>
+          </Card>
+
+          <Card className="attendance-panel lg:col-span-6">
+            <CardHeader className="flex flex-col gap-3 px-4 pb-3 pt-4 sm:flex-row sm:items-center sm:justify-between sm:px-5 sm:pt-5">
+              <SectionHeader title={`Calendar — ${selectedBatch?.id ?? "QC-2026"}`} />
+              <div className="flex items-center gap-1">
+                <Button
+                  variant="outline"
+                  size="icon"
+                  className="h-8 w-8 rounded-lg"
+                  onClick={() => setCalendarDate((current) => new Date(current.getFullYear(), current.getMonth() - 1, 1))}
+                >
+                  <ChevronLeft className="h-4 w-4" />
+                </Button>
+                <p className="min-w-[7rem] text-center text-sm font-medium">{formatMonthLabel(calendarDate)}</p>
+                <Button
+                  variant="outline"
+                  size="icon"
+                  className="h-8 w-8 rounded-lg"
+                  onClick={() => setCalendarDate((current) => new Date(current.getFullYear(), current.getMonth() + 1, 1))}
+                >
+                  <ChevronRight className="h-4 w-4" />
+                </Button>
+              </div>
+            </CardHeader>
+            <CardContent className="px-4 pb-4 sm:px-5 sm:pb-5">
+              <div className="mb-2 grid grid-cols-7 gap-1.5 text-center text-[11px] font-medium text-muted-foreground sm:text-xs">
+                {["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"].map((day) => (
+                  <div key={day}>{day}</div>
+                ))}
+              </div>
+              <CalendarGrid date={calendarDate} />
+              <div className="mt-4">
+                <AttendanceLegend />
+              </div>
+            </CardContent>
+          </Card>
+        </div>
+
+        <div className="grid gap-6 lg:grid-cols-12">
+          <Card className="attendance-panel lg:col-span-7">
+            <CardHeader className="px-4 pb-3 pt-4 sm:px-5 sm:pt-5">
+              <SectionHeader title="Faculty overview" actionLabel="View all" />
+            </CardHeader>
+            <CardContent className="px-0 pb-0">
+              <div className="overflow-x-auto scrollbar-thin">
+                <Table>
+                  <TableHeader>
+                    <TableRow className="hover:bg-transparent">
+                      <TableHead className="px-4 py-3 text-xs text-muted-foreground">#</TableHead>
+                      <TableHead className="px-4 py-3 text-xs text-muted-foreground">Name</TableHead>
+                      <TableHead className="hidden px-4 py-3 text-xs text-muted-foreground md:table-cell">Dept</TableHead>
+                      <TableHead className="px-4 py-3 text-xs text-muted-foreground">Status</TableHead>
+                      <TableHead className="hidden px-4 py-3 text-xs text-muted-foreground lg:table-cell">In</TableHead>
+                      <TableHead className="hidden px-4 py-3 text-xs text-muted-foreground lg:table-cell">Out</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {facultyAttendanceRows.map((faculty, index) => (
+                      <TableRow key={faculty.name}>
+                        <TableCell className="px-4 py-3 text-sm text-muted-foreground">{index + 1}</TableCell>
+                        <TableCell className="px-4 py-3 text-sm font-medium">{faculty.name}</TableCell>
+                        <TableCell className="hidden px-4 py-3 text-sm text-muted-foreground md:table-cell">{faculty.department}</TableCell>
+                        <TableCell className="px-4 py-3">
+                          <span
+                            className={cn(
+                              "inline-flex items-center gap-1.5 rounded-full px-2.5 py-0.5 text-xs font-medium",
+                              faculty.status === "Present" ? "bg-emerald-500/15 text-emerald-700" : "bg-amber-500/15 text-amber-700",
+                            )}
+                          >
+                            {faculty.status}
+                          </span>
+                        </TableCell>
+                        <TableCell className="hidden px-4 py-3 text-sm lg:table-cell">{faculty.checkIn}</TableCell>
+                        <TableCell className="hidden px-4 py-3 text-sm lg:table-cell">{faculty.checkOut}</TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              </div>
+            </CardContent>
+          </Card>
+
+          <Card className="attendance-panel lg:col-span-5">
+            <CardHeader className="px-4 pb-3 pt-4 sm:px-5 sm:pt-5">
+              <SectionHeader title="Faculty trend" />
+            </CardHeader>
+            <CardContent className="h-[240px] px-3 pb-4 sm:px-5 sm:pb-5">
+              <ResponsiveContainer width="100%" height="100%">
+                <LineChart data={facultyTrend} margin={{ top: 8, right: 8, left: -12, bottom: 0 }}>
+                  <CartesianGrid strokeDasharray="3 3" className="stroke-border" opacity={0.5} />
+                  <XAxis dataKey="label" axisLine={false} tickLine={false} tick={{ fontSize: 11 }} />
+                  <YAxis axisLine={false} tickLine={false} tick={{ fontSize: 11 }} domain={[0, 100]} />
+                  <Tooltip />
+                  <Line type="monotone" dataKey="sharma" stroke="#6366f1" strokeWidth={2} dot={false} />
+                  <Line type="monotone" dataKey="ahmed" stroke="#2563eb" strokeWidth={2} dot={false} />
+                  <Line type="monotone" dataKey="neha" stroke="#f97316" strokeWidth={2} dot={false} />
+                </LineChart>
+              </ResponsiveContainer>
+            </CardContent>
+          </Card>
+
+          <Card className="attendance-panel lg:col-span-12">
+            <CardHeader className="px-4 pb-3 pt-4 sm:px-5 sm:pt-5">
+              <SectionHeader title="Leave requests" actionLabel="View all" />
+            </CardHeader>
+            <CardContent className="space-y-3 px-4 pb-4 sm:px-5 sm:pb-5">
+              {leaveRequests.map((request) => (
+                <div
+                  key={request.name}
+                  className="flex flex-col gap-3 rounded-xl border border-border/60 bg-muted/30 p-3 sm:flex-row sm:items-center sm:justify-between"
+                >
+                  <div className="flex min-w-0 items-center gap-3">
+                    <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-primary/15 text-xs font-semibold text-primary">
+                      {request.initials}
+                    </div>
+                    <div className="min-w-0">
+                      <p className="truncate text-sm font-medium">{request.name}</p>
+                      <p className="text-xs text-muted-foreground">{request.reason}</p>
+                    </div>
+                  </div>
+                  <p className="text-xs text-muted-foreground sm:text-sm">
+                    {request.from} → {request.to}
+                  </p>
+                  <div className="flex gap-2">
+                    <Button variant="outline" size="sm" className="rounded-lg">
+                      Approve
+                    </Button>
+                    <Button variant="outline" size="sm" className="rounded-lg">
+                      Reject
+                    </Button>
+                  </div>
+                </div>
+              ))}
+            </CardContent>
+          </Card>
+        </div>
+
+        <p className="flex items-center gap-2 text-xs text-muted-foreground sm:text-sm">
+          <Info className="h-4 w-4 shrink-0 text-amber-500" />
+          You can edit today&apos;s attendance until 11:59 PM.
+        </p>
+    </div>
+  );
+}

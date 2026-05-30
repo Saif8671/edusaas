@@ -52,6 +52,11 @@ import {
   SheetTrigger,
 } from "@/components/ui/sheet";
 import { cn } from "@/lib/utils";
+import { BRAND_NAME } from "@/lib/brand";
+import { isDemoMode } from "@/lib/demo";
+import { routes } from "@/lib/routes";
+import { DemoBanner } from "@/components/app/demo-banner";
+import { LoadingShell } from "@/components/app/loading-shell";
 
 type NavItem = {
   name: string;
@@ -124,6 +129,7 @@ const roleSections: Record<RoleType, NavSection[]> = {
         { name: "Dashboard", href: "/student/dashboard", icon: LayoutDashboard, hint: "Learning view" },
         { name: "My Courses", href: "/student/courses", icon: BookOpen, hint: "Enrolled classes" },
         { name: "Learning Path", href: "/student/learning-path", icon: Compass, hint: "Roadmap" },
+        { name: "AI Study Assistant", href: "/student/ai-study-assistance", icon: Sparkles, hint: "AI tutor" },
         { name: "Marketplace", href: "/student/marketplace", icon: ShoppingBag, hint: "Buy courses" },
         { name: "Assignments", href: "/student/assignments", icon: BookOpenCheck, hint: "To-do" },
       ],
@@ -197,7 +203,7 @@ export function DashboardLayout({ children }: { children: ReactNode }) {
   const unreadCount = notifications.filter((item) => !item.read).length;
 
   if (!mounted || !currentUser || !activeRole) {
-    return null;
+    return <LoadingShell label="Preparing your workspace…" />;
   }
 
   const handleLogout = () => {
@@ -266,10 +272,10 @@ export function DashboardLayout({ children }: { children: ReactNode }) {
           collapsed ? "w-[92px]" : "w-[290px]",
         )}
       >
-        <div className="flex h-20 items-center justify-between gap-3 border-b px-5">
+        <div className="flex h-14 items-center justify-between gap-3 border-b px-5">
           <div className="flex items-center gap-3 overflow-hidden">
             <span className="font-display text-lg font-semibold tracking-tight text-foreground">
-              {collapsed ? "EL" : "EduLMS"}
+              {collapsed ? "EL" : BRAND_NAME}
             </span>
           </div>
           <Button variant="ghost" size="icon" onClick={() => setCollapsed((value) => !value)}>
@@ -315,8 +321,8 @@ export function DashboardLayout({ children }: { children: ReactNode }) {
       </aside>
 
       <div className="flex min-w-0 flex-1 flex-col">
-        <header className="sticky top-0 z-40 border-b bg-background/70 backdrop-blur-xl">
-          <div className="flex h-20 items-center justify-between gap-4 px-4 sm:px-6">
+        <header className="sticky top-0 z-40 border-b bg-background/95 backdrop-blur-md">
+          <div className="flex h-14 items-center justify-between gap-3 px-4 sm:px-6">
             <div className="flex min-w-0 items-center gap-3">
               <Sheet>
                 <SheetTrigger asChild>
@@ -327,7 +333,7 @@ export function DashboardLayout({ children }: { children: ReactNode }) {
                 <SheetContent side="left" className="w-[300px] overflow-y-auto p-0">
                   <div className="border-b px-5 py-5">
                     <span className="font-display text-2xl font-semibold tracking-tight text-foreground">
-                      EduLMS
+                      {BRAND_NAME}
                     </span>
                   </div>
                   <div className="px-4 py-4">
@@ -348,50 +354,39 @@ export function DashboardLayout({ children }: { children: ReactNode }) {
               </Sheet>
 
               <div className="min-w-0">
-                <p className="text-xs uppercase tracking-[0.24em] text-muted-foreground">Workspace</p>
-                <h1 className="truncate text-xl font-semibold sm:text-2xl">
+                <h1 className="truncate text-base font-semibold text-foreground sm:text-lg">
                   {activeItem?.name ?? "Dashboard"}
                 </h1>
               </div>
             </div>
 
-            <div className="hidden min-w-0 flex-1 items-center justify-center lg:flex">
-              <div className="relative w-full max-w-xl">
-                <Search className="pointer-events-none absolute left-4 top-4 h-4 w-4 text-muted-foreground" />
-                <Input
-                  value={search}
-                  onChange={(event) => setSearch(event.target.value)}
-                  placeholder="Search students, faculty, batches..."
-                  className="h-12 rounded-full border-border/60 bg-background/70 pl-10"
-                />
-              </div>
-            </div>
-
             <div className="flex items-center gap-2 sm:gap-3">
-              <DropdownMenu>
-                <DropdownMenuTrigger asChild>
-                  <Button variant="outline" className="hidden rounded-full border-dashed px-4 sm:flex">
-                    <span className="mr-2 text-xs text-muted-foreground">Role</span>
-                    <span className="text-xs font-semibold">{activeRole.toLowerCase()}</span>
-                  </Button>
-                </DropdownMenuTrigger>
-                <DropdownMenuContent align="end" className="w-52">
-                  <DropdownMenuLabel>Switch workspace</DropdownMenuLabel>
-                  <DropdownMenuSeparator />
-                  {(["ADMIN", "FACULTY", "STUDENT", "PARENT"] as RoleType[]).map((role) => (
-                    <DropdownMenuItem
-                      key={role}
-                      onClick={() => {
-                        const { login } = useAppStore.getState();
-                        login(`${role.toLowerCase()}@edu.com`, role);
-                        router.push(`/${role.toLowerCase()}/dashboard`);
-                      }}
-                    >
-                      {role.charAt(0) + role.slice(1).toLowerCase()} view
-                    </DropdownMenuItem>
-                  ))}
-                </DropdownMenuContent>
-              </DropdownMenu>
+              {isDemoMode ? (
+                <DropdownMenu>
+                  <DropdownMenuTrigger asChild>
+                    <Button variant="outline" className="hidden rounded-full border-dashed px-4 sm:flex">
+                      <span className="mr-2 text-xs text-muted-foreground">Demo role</span>
+                      <span className="text-xs font-semibold">{activeRole.toLowerCase()}</span>
+                    </Button>
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent align="end" className="w-52">
+                    <DropdownMenuLabel>Switch demo workspace</DropdownMenuLabel>
+                    <DropdownMenuSeparator />
+                    {(["ADMIN", "FACULTY", "STUDENT", "PARENT"] as RoleType[]).map((role) => (
+                      <DropdownMenuItem
+                        key={role}
+                        onClick={() => {
+                          const { login } = useAppStore.getState();
+                          login(`${role.toLowerCase()}@edu.com`, role);
+                          router.push(routes[role.toLowerCase() as "admin" | "faculty" | "student" | "parent"].dashboard);
+                        }}
+                      >
+                        {role.charAt(0) + role.slice(1).toLowerCase()} view
+                      </DropdownMenuItem>
+                    ))}
+                  </DropdownMenuContent>
+                </DropdownMenu>
+              ) : null}
 
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>
@@ -399,7 +394,7 @@ export function DashboardLayout({ children }: { children: ReactNode }) {
                     variant="ghost"
                     size="icon"
                     className="relative"
-                    onClick={markAllNotificationsRead}
+                    aria-label={`Notifications${unreadCount > 0 ? `, ${unreadCount} unread` : ""}`}
                   >
                     <Bell className="h-5 w-5" />
                     {unreadCount > 0 && (
@@ -410,7 +405,18 @@ export function DashboardLayout({ children }: { children: ReactNode }) {
                   </Button>
                 </DropdownMenuTrigger>
                 <DropdownMenuContent align="end" className="w-80">
-                  <DropdownMenuLabel>Notifications</DropdownMenuLabel>
+                  <DropdownMenuLabel className="flex items-center justify-between gap-2">
+                    <span>Notifications</span>
+                    {unreadCount > 0 ? (
+                      <button
+                        type="button"
+                        className="text-xs font-medium text-primary hover:underline"
+                        onClick={markAllNotificationsRead}
+                      >
+                        Mark all read
+                      </button>
+                    ) : null}
+                  </DropdownMenuLabel>
                   <DropdownMenuSeparator />
                   {notifications.slice(0, 4).map((item) => (
                     <div
@@ -475,9 +481,9 @@ export function DashboardLayout({ children }: { children: ReactNode }) {
           </div>
         </header>
 
-        <main className="flex-1 overflow-y-auto">
-          <div className="relative mx-auto max-w-7xl px-4 py-6 sm:px-6 lg:px-8 lg:py-8">
-            <div className="pointer-events-none absolute inset-x-0 top-0 -z-10 h-56 rounded-[2rem] bg-gradient-to-r from-primary/5 via-transparent to-cyan-500/5 blur-3xl" />
+        <main className="flex-1 overflow-y-auto overflow-x-hidden">
+          <DemoBanner />
+          <div className="mx-auto w-full max-w-7xl px-4 py-4 sm:px-6 sm:py-6 lg:px-8">
             {children}
           </div>
         </main>

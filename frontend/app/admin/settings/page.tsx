@@ -1,4 +1,5 @@
 "use client";
+import { PageHeader } from "@/components/app/page-header";
 
 import { useAppStore } from "@/lib/store";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -9,11 +10,8 @@ export default function AdminSettings() {
   const { currentUser } = useAppStore();
 
   return (
-    <div className="space-y-6">
-      <div>
-        <h2 className="text-3xl font-bold tracking-tight">System Preferences</h2>
-        <p className="text-muted-foreground">Adjust security rules, SMTP credentials, and toggle layout behaviors</p>
-      </div>
+    <div className="page-shell">
+      <PageHeader hideTitle title="System Preferences" description="Adjust security rules, SMTP credentials, and toggle layout behaviors" />
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
         

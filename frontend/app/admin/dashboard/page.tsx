@@ -25,6 +25,9 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Progress } from "@/components/ui/progress";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { PageHeader } from "@/components/app/page-header";
+import { routes } from "@/lib/routes";
+import { toast } from "@/lib/toast";
 
 const chartData = [
   { month: "Jan", enrollments: 30, revenue: 12000, attendance: 90 },
@@ -153,15 +156,48 @@ export default function AdminDashboardPage() {
     },
   ];
 
-  const openRoute = (href: string) => router.push(href);
+  const openRoute = (href: string, label?: string) => {
+    if (label) toast.info(`Opening ${label}`);
+    router.push(href);
+  };
 
   return (
-    <div className="space-y-6">
+    <div className="page-shell space-y-6">
+      <PageHeader
+        hideTitle
+        title="Dashboard"
+        description="Overview of learners, revenue, attendance, and operations."
+        actions={
+          <Button type="button" className="rounded-full" onClick={() => openRoute(routes.admin.announcements, "Announcements")}>
+            <Megaphone className="mr-2 h-4 w-4" />
+            New announcement
+          </Button>
+        }
+      />
+
       <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
         {stats.map((stat) => {
           const Icon = stat.icon;
           return (
-            <Card key={stat.title} className="glass-card rounded-[1.6rem]">
+            <Card
+              key={stat.title}
+              className="glass-card cursor-pointer rounded-[1.6rem] transition hover:-translate-y-0.5 hover:shadow-md"
+              onClick={() => {
+                const href =
+                  stat.title === "Students"
+                    ? routes.admin.students
+                    : stat.title === "Faculty"
+                      ? routes.admin.faculty
+                      : stat.title === "Batches"
+                        ? routes.admin.batches
+                        : stat.title === "Active Courses"
+                          ? routes.admin.courses
+                          : stat.title === "Revenue"
+                            ? routes.admin.payments
+                            : routes.admin.attendance;
+                openRoute(href, stat.title);
+              }}
+            >
               <CardHeader className="flex flex-row items-start justify-between space-y-0 pb-3">
                 <div>
                   <CardDescription>{stat.title}</CardDescription>

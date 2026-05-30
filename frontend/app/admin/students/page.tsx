@@ -9,6 +9,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Input } from "@/components/ui/input";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { StudentAcademicFileDrawer } from "@/components/student-academic-file-drawer";
+import { PageHeader } from "@/components/app/page-header";
 
 type StudentForm = {
   name: string;
@@ -81,17 +82,18 @@ export default function AdminStudents() {
   };
 
   return (
-    <div className="space-y-6">
-      <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-        <div>
-          <h2 className="text-3xl font-bold tracking-tight">Student Manager</h2>
-          <p className="text-muted-foreground">Create, edit, and delete student records with parent mapping and attendance.</p>
-        </div>
-        <Button variant="outline" onClick={resetForm} className="rounded-xl gap-2">
-          <PlusCircle className="h-4 w-4" />
-          New student
-        </Button>
-      </div>
+    <div className="page-shell space-y-6">
+      <PageHeader
+        hideTitle
+        title="Student Manager"
+        description="Create, edit, and delete student records with parent mapping and attendance."
+        actions={
+          <Button variant="outline" onClick={resetForm} className="gap-2 rounded-xl">
+            <PlusCircle className="h-4 w-4" />
+            New student
+          </Button>
+        }
+      />
 
       <Card className="glass-card border bg-card/40 backdrop-blur-md">
         <CardHeader>

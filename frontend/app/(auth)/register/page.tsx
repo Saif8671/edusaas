@@ -6,6 +6,9 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import { GraduationCap, Loader2 } from "lucide-react";
 import Link from "next/link";
+import { BRAND_NAME } from "@/lib/brand";
+import { toast } from "@/lib/toast";
+import { routes } from "@/lib/routes";
 
 export default function RegisterPage() {
   const router = useRouter();
@@ -24,8 +27,9 @@ export default function RegisterPage() {
     setTimeout(() => {
       setSuccess(true);
       setLoading(false);
+      toast.success("Account created — sign in to continue");
       setTimeout(() => {
-        router.push("/login");
+        router.push(routes.login);
       }, 1500);
     }, 1200);
   };
@@ -38,11 +42,11 @@ export default function RegisterPage() {
           <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-primary text-primary-foreground shadow-lg shadow-primary/20">
             <GraduationCap className="h-6 w-6" />
           </div>
-          <h2 className="mt-6 text-3xl font-extrabold tracking-tight bg-gradient-to-r from-primary to-purple-600 bg-clip-text text-transparent">
-            Create Account
+          <h2 className="mt-6 text-3xl font-extrabold tracking-tight text-foreground">
+            Join {BRAND_NAME}
           </h2>
           <p className="mt-2 text-sm text-muted-foreground">
-            Join the SaaS Academy platform today
+            Create your account (demo registration — no backend yet)
           </p>
         </div>
 

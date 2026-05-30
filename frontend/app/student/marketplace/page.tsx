@@ -1,4 +1,5 @@
 "use client";
+import { PageHeader } from "@/components/app/page-header";
 
 import { useAppStore } from "@/lib/store";
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
@@ -9,11 +10,8 @@ export default function StudentMarketplace() {
   const { courses } = useAppStore();
 
   return (
-    <div className="space-y-6">
-      <div>
-        <h2 className="text-3xl font-bold tracking-tight">Courses Marketplace</h2>
-        <p className="text-muted-foreground">Enroll in new study tracks</p>
-      </div>
+    <div className="page-shell">
+      <PageHeader hideTitle title="Courses Marketplace" description="Enroll in new study tracks" />
 
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
         {courses.map((course) => (

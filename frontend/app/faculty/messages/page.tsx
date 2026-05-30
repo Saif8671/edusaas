@@ -9,6 +9,8 @@ import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 import { BellRing, Send, MessageSquare, Users, UserRound, Sparkles } from "lucide-react";
+import { PageHeader } from "@/components/app/page-header";
+import { toast } from "@/lib/toast";
 
 const audienceOptions: MessageAudience[] = ["Students", "Parents"];
 const scopeOptions: Array<{ value: MessageScope; label: string; helper: string }> = [
@@ -84,35 +86,27 @@ export default function FacultyMessages() {
     setTargetBatch(batches[0]?.id ?? "");
     setTargetStudentId(students[0]?.id ?? "");
     setPriority("Important");
+    toast.success("Message sent to selected recipients");
   };
 
   return (
-    <div className="space-y-6">
-      <div className="flex flex-col gap-4 rounded-[1.6rem] border bg-gradient-to-r from-cyan-500/10 via-background to-primary/10 p-6 lg:flex-row lg:items-center lg:justify-between">
-        <div className="space-y-2">
-          <h2 className="text-3xl font-bold tracking-tight">Faculty Messages</h2>
-          <p className="max-w-2xl text-muted-foreground">
-            Send one announcement to students, parents, or both, then keep a running inbox of what was sent.
-          </p>
-        </div>
-        <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
-          <div className="rounded-2xl border bg-background/80 px-4 py-3">
-            <p className="text-[11px] uppercase tracking-[0.18em] text-muted-foreground">Messages</p>
-            <p className="mt-1 text-xl font-bold">{messages.length}</p>
+    <div className="page-shell space-y-6">
+      <PageHeader hideTitle title="Faculty messages"
+        description="Send announcements to students, parents, or both, and review what you have sent."
+      />
+
+      <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+        {[
+          { label: "Messages", value: messages.length },
+          { label: "Students", value: students.length },
+          { label: "Parents", value: students.filter((student) => student.parentName).length },
+          { label: "Batches", value: batches.length },
+        ].map((item) => (
+          <div key={item.label} className="rounded-xl border bg-card/60 px-4 py-3">
+            <p className="text-xs text-muted-foreground">{item.label}</p>
+            <p className="mt-1 text-lg font-semibold">{item.value}</p>
           </div>
-          <div className="rounded-2xl border bg-background/80 px-4 py-3">
-            <p className="text-[11px] uppercase tracking-[0.18em] text-muted-foreground">Students</p>
-            <p className="mt-1 text-xl font-bold">{students.length}</p>
-          </div>
-          <div className="rounded-2xl border bg-background/80 px-4 py-3">
-            <p className="text-[11px] uppercase tracking-[0.18em] text-muted-foreground">Parents</p>
-            <p className="mt-1 text-xl font-bold">{students.filter((student) => student.parentName).length}</p>
-          </div>
-          <div className="rounded-2xl border bg-background/80 px-4 py-3">
-            <p className="text-[11px] uppercase tracking-[0.18em] text-muted-foreground">Batches</p>
-            <p className="mt-1 text-xl font-bold">{batches.length}</p>
-          </div>
-        </div>
+        ))}
       </div>
 
       <div className="grid gap-6 lg:grid-cols-[1.05fr_0.95fr]">

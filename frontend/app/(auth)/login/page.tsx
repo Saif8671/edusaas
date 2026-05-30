@@ -7,6 +7,10 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import { GraduationCap, Eye, EyeOff, Loader2 } from "lucide-react";
 import Link from "next/link";
+import { BRAND_NAME, BRAND_LOGIN_SUBTITLE } from "@/lib/brand";
+import { isDemoMode } from "@/lib/demo";
+import { routes } from "@/lib/routes";
+import { toast } from "@/lib/toast";
 
 export default function LoginPage() {
   const router = useRouter();
@@ -35,7 +39,8 @@ export default function LoginPage() {
       else if (normalized.includes("parent") || normalized.includes("rahman")) detectedRole = "PARENT";
       
       login(email, detectedRole);
-      router.push(`/${detectedRole.toLowerCase()}/dashboard`);
+      toast.success(`Signed in as ${detectedRole.toLowerCase()}`);
+      router.push(routes[detectedRole.toLowerCase() as "admin" | "faculty" | "student" | "parent"].dashboard);
       setLoading(false);
     }, 1000);
   };
@@ -43,8 +48,8 @@ export default function LoginPage() {
   const handleQuickLogin = (role: RoleType) => {
     setLoading(true);
     setTimeout(() => {
-      login(`${role.toLowerCase()}@edu.saas.com`, role);
-      router.push(`/${role.toLowerCase()}/dashboard`);
+      login(`${role.toLowerCase()}@edu.com`, role);
+      router.push(routes[role.toLowerCase() as "admin" | "faculty" | "student" | "parent"].dashboard);
       setLoading(false);
     }, 600);
   };
@@ -58,12 +63,13 @@ export default function LoginPage() {
           <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-primary text-primary-foreground shadow-lg shadow-primary/20">
             <GraduationCap className="h-6 w-6" />
           </div>
-          <h2 className="mt-6 text-3xl font-extrabold tracking-tight bg-gradient-to-r from-primary to-purple-600 bg-clip-text text-transparent">
-            EduSaaS Academy
+          <h2 className="mt-6 text-3xl font-extrabold tracking-tight text-foreground">
+            {BRAND_NAME}
           </h2>
-          <p className="mt-2 text-sm text-muted-foreground">
-            Sign in to access your customized learning space
-          </p>
+          <p className="mt-2 text-sm text-muted-foreground">{BRAND_LOGIN_SUBTITLE}</p>
+          {isDemoMode ? (
+            <p className="mt-1 text-xs text-amber-700 dark:text-amber-300">Demo mode — any password works</p>
+          ) : null}
         </div>
 
         {/* Credentials Form */}
@@ -144,12 +150,12 @@ export default function LoginPage() {
           </form>
         </Card>
 
-        {/* Demo Fast Login Presets (Staggered Interface) */}
+        {isDemoMode ? (
         <div className="space-y-3">
-          <div className="flex items-center my-4">
-            <div className="flex-grow border-t" />
-            <span className="mx-4 text-xs uppercase font-bold text-muted-foreground">Demo Accounts Preset Selector</span>
-            <div className="flex-grow border-t" />
+          <div className="my-4 flex items-center">
+            <div className="grow border-t" />
+            <span className="mx-4 text-xs font-bold uppercase text-muted-foreground">Quick demo access</span>
+            <div className="grow border-t" />
           </div>
 
           <div className="grid grid-cols-2 gap-2">
@@ -167,6 +173,7 @@ export default function LoginPage() {
             </Button>
           </div>
         </div>
+        ) : null}
 
       </div>
     </div>

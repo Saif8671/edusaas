@@ -18,6 +18,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
+import { PageHeader } from "@/components/app/page-header";
 
 type LiveSessionForm = {
   title: string;
@@ -204,13 +205,12 @@ export default function FacultyLive() {
   };
 
   return (
-    <div className="space-y-6">
-      <div className="space-y-2">
-        <h2 className="text-3xl font-bold tracking-tight">Live Session Broadcasts</h2>
-        <p className="text-muted-foreground">
-          Create, edit, delete, and share live meeting sessions with Zoom join links for students.
-        </p>
-      </div>
+    <div className="page-shell space-y-6">
+      <PageHeader
+        hideTitle
+        title="Live Session Broadcasts"
+        description="Create, edit, delete, and share live meeting sessions with Zoom join links for students."
+      />
 
       <Card className="glass-card border bg-card/40 backdrop-blur-md">
         <CardHeader>

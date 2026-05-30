@@ -1,9 +1,11 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import { ArrowRight } from "lucide-react";
-import { AnimatedSphere } from "./animated-sphere";
+import { routes } from "@/lib/routes";
+import { AnimatedSphereLazy } from "./animated-sphere-lazy";
 
 const words = ["teach", "learn", "grow", "connect"];
 
@@ -26,7 +28,7 @@ export function HeroSection() {
     <section className="relative min-h-screen flex flex-col justify-center overflow-hidden pb-64 lg:pb-80">
       {/* Animated sphere background */}
       <div className="absolute right-0 top-1/2 -translate-y-1/2 w-[500px] h-[500px] lg:w-[700px] lg:h-[700px] opacity-60 pointer-events-none -mr-20 lg:-mr-32">
-        <AnimatedSphere />
+        <AnimatedSphereLazy />
       </div>
       
       {/* Subtle grid lines */}
@@ -119,21 +121,23 @@ export function HeroSection() {
                 isVisible ? "opacity-100 translate-y-0" : "opacity-0 translate-y-4"
               }`}
             >
-              <Button 
-                size="lg" 
-                className="bg-foreground hover:bg-foreground/90 text-background px-8 h-14 text-base rounded-full group"
-                onClick={() => window.location.href = "/select-role"}
+              <Button
+                size="lg"
+                className="group h-14 rounded-full bg-foreground px-8 text-base text-background hover:bg-foreground/90"
+                asChild
               >
-                Launch Workspace
-                <ArrowRight className="w-4 h-4 ml-2 transition-transform group-hover:translate-x-1" />
+                <Link href={routes.selectRole}>
+                  Launch workspace
+                  <ArrowRight className="ml-2 h-4 w-4 transition-transform group-hover:translate-x-1" />
+                </Link>
               </Button>
-              <Button 
-                size="lg" 
-                variant="outline" 
-                className="h-14 px-8 text-base rounded-full border-foreground/20 hover:bg-foreground/5"
-                onClick={() => window.location.href = "/login"}
+              <Button
+                size="lg"
+                variant="outline"
+                className="h-14 rounded-full border-foreground/20 px-8 text-base hover:bg-foreground/5"
+                asChild
               >
-                Sign In Credentials
+                <Link href={routes.login}>Sign in</Link>
               </Button>
             </div>
           </div>

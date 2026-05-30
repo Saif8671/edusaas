@@ -4,25 +4,37 @@ import { useAppStore } from "@/lib/store";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Send, FileCheck } from "lucide-react";
+import { Send, FileCheck, BookOpenCheck } from "lucide-react";
+import { PageHeader } from "@/components/app/page-header";
+import { EmptyState } from "@/components/app/empty-state";
+import { assignmentStatusStyles } from "@/lib/status-styles";
+import { toast } from "@/lib/toast";
 
 export default function StudentAssignments() {
   const { assignments, submitAssignment } = useAppStore();
 
   return (
-    <div className="space-y-6">
-      <div>
-        <h2 className="text-3xl font-bold tracking-tight">My Homework Assignments</h2>
-        <p className="text-muted-foreground">Submit deliverables and view grading reviews from teachers</p>
-      </div>
+    <div className="page-shell">
+      <PageHeader
+        hideTitle
+        title="Assignments"
+        description="Submit deliverables and view grading feedback from faculty."
+      />
 
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+      {assignments.length === 0 ? (
+        <EmptyState
+          icon={BookOpenCheck}
+          title="No assignments yet"
+          description="When faculty publish work for your course, it will appear here."
+        />
+      ) : (
+      <div className="grid grid-cols-1 gap-6 md:grid-cols-2">
         {assignments.map((asm) => (
           <Card key={asm.id} className="glass-card border bg-card/40 backdrop-blur-md">
             <CardHeader>
               <div className="flex justify-between">
                 <span className="text-xs text-primary font-semibold">{asm.course}</span>
-                <Badge variant={asm.status === "Reviewed" ? "default" : "secondary"}>
+                <Badge variant="outline" className={assignmentStatusStyles[asm.status]}>
                   {asm.status}
                 </Badge>
               </div>
@@ -36,8 +48,16 @@ export default function StudentAssignments() {
                   <p className="text-muted-foreground">Feedback: "{asm.feedback}"</p>
                 </div>
               ) : asm.status === "Pending" ? (
-                <Button size="sm" onClick={() => submitAssignment(asm.id)} className="w-full rounded-xl gap-1">
-                  <Send className="h-3.5 w-3.5" /> Submit Homework PDF
+                <Button
+                  type="button"
+                  size="sm"
+                  onClick={() => {
+                    submitAssignment(asm.id);
+                    toast.success("Assignment submitted");
+                  }}
+                  className="w-full gap-1 rounded-xl"
+                >
+                  <Send className="h-3.5 w-3.5" /> Submit homework
                 </Button>
               ) : (
                 <p className="text-muted-foreground italic">Submitted. Awaiting professor appraisal...</p>
@@ -46,6 +66,7 @@ export default function StudentAssignments() {
           </Card>
         ))}
       </div>
+      )}
     </div>
   );
 }

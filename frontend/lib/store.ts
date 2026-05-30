@@ -85,6 +85,7 @@ export interface AssignmentData {
   id: string;
   title: string;
   course: string;
+  batch?: string;
   deadline: string;
   status: "Pending" | "Submitted" | "Reviewed" | "Late";
   grade?: string;
@@ -281,9 +282,9 @@ export const useAppStore = create<AppStore>()(
         { id: "INV-903", childName: "Saif Rahman", amount: 150, dueDate: "2026-05-20", status: "Overdue" },
       ],
       assignments: [
-        { id: "ASM-1", title: "Schrödinger Equation Proofs", course: "Advanced Quantum Computing", deadline: "2026-06-03", status: "Pending" },
-        { id: "ASM-2", title: "Neural Network from Scratch", course: "Artificial Intelligence & ML", deadline: "2026-05-20", status: "Submitted" },
-        { id: "ASM-3", title: "Graph Traversal Algorithms", course: "Data Structures & Algorithms", deadline: "2026-05-15", status: "Reviewed", grade: "A+", feedback: "Excellent code structure and optimization!" },
+        { id: "ASM-1", title: "Schrödinger Equation Proofs", course: "Advanced Quantum Computing", batch: "QC-2026", deadline: "2026-06-03", status: "Pending" },
+        { id: "ASM-2", title: "Neural Network from Scratch", course: "Artificial Intelligence & ML", batch: "AI-Alpha", deadline: "2026-05-20", status: "Submitted" },
+        { id: "ASM-3", title: "Graph Traversal Algorithms", course: "Data Structures & Algorithms", batch: "CS-Beta", deadline: "2026-05-15", status: "Reviewed", grade: "A+", feedback: "Excellent code structure and optimization!" },
       ],
 
       liveSessions: [
@@ -528,6 +529,7 @@ export const useAppStore = create<AppStore>()(
             id: assignment.id ?? `ASM-${Date.now()}`,
             title: assignment.title ?? "",
             course: assignment.course ?? "",
+            batch: assignment.batch,
             deadline: assignment.deadline ?? "",
             status: assignment.status ?? "Pending",
             grade: assignment.grade,

@@ -1,4 +1,5 @@
 "use client";
+import { PageHeader } from "@/components/app/page-header";
 
 import { useAppStore } from "@/lib/store";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
@@ -8,11 +9,8 @@ export default function ParentNotifications() {
   const { notifications } = useAppStore();
 
   return (
-    <div className="space-y-6">
-      <div>
-        <h2 className="text-3xl font-bold tracking-tight">Notifications Log</h2>
-        <p className="text-muted-foreground">Keep updated with school alerts</p>
-      </div>
+    <div className="page-shell">
+      <PageHeader hideTitle title="Notifications Log" description="Keep updated with school alerts" />
 
       <div className="space-y-4">
         {notifications.map((n) => (

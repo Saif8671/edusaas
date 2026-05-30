@@ -1,4 +1,5 @@
 "use client";
+import { PageHeader } from "@/components/app/page-header";
 
 import { useAppStore } from "@/lib/store";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -8,11 +9,8 @@ export default function ParentSettings() {
   const { currentUser } = useAppStore();
 
   return (
-    <div className="space-y-6">
-      <div>
-        <h2 className="text-3xl font-bold tracking-tight">Parent Configs</h2>
-        <p className="text-muted-foreground">Adjust notifications and dependent parameters</p>
-      </div>
+    <div className="page-shell">
+      <PageHeader hideTitle title="Parent Configs" description="Adjust notifications and dependent parameters" />
 
       <Card className="glass-card border bg-card/40 backdrop-blur-md">
         <CardHeader>

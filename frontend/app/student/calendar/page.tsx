@@ -1,15 +1,13 @@
 "use client";
+import { PageHeader } from "@/components/app/page-header";
 
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Calendar } from "lucide-react";
 
 export default function StudentCalendar() {
   return (
-    <div className="space-y-6">
-      <div>
-        <h2 className="text-3xl font-bold tracking-tight">Calendar</h2>
-        <p className="text-muted-foreground">Monitor schedule logs and slot events</p>
-      </div>
+    <div className="page-shell">
+      <PageHeader hideTitle title="Calendar" description="Monitor schedule logs and slot events" />
 
       <Card className="glass-card border bg-card/40 backdrop-blur-md">
         <CardHeader>

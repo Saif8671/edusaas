@@ -1,15 +1,13 @@
 "use client";
+import { PageHeader } from "@/components/app/page-header";
 
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Compass, CheckCircle2 } from "lucide-react";
 
 export default function StudentLearningPath() {
   return (
-    <div className="space-y-6">
-      <div>
-        <h2 className="text-3xl font-bold tracking-tight">Interactive Learning Roadmap</h2>
-        <p className="text-muted-foreground">Follow structured steps to unlock skills badges</p>
-      </div>
+    <div className="page-shell">
+      <PageHeader hideTitle title="Interactive Learning Roadmap" description="Follow structured steps to unlock skills badges" />
 
       <Card className="glass-card border bg-card/40 backdrop-blur-md">
         <CardHeader>

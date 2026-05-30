@@ -3,9 +3,13 @@
 import { useMemo } from "react";
 import { useAppStore } from "@/lib/store";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { MessageSquare, Users, BellRing } from "lucide-react";
-
+import { PageHeader } from "@/components/app/page-header";
+import { EmptyState } from "@/components/app/empty-state";
+import { routes } from "@/lib/routes";
+import { useAppNav } from "@/hooks/use-app-nav";
 function formatMessageTime(value: string) {
   return new Intl.DateTimeFormat("en-US", {
     dateStyle: "medium",
@@ -14,6 +18,7 @@ function formatMessageTime(value: string) {
 }
 
 export default function StudentMessages() {
+  const navigate = useAppNav();
   const { currentUser, students, messages } = useAppStore();
 
   const profile = useMemo(
@@ -34,25 +39,24 @@ export default function StudentMessages() {
   );
 
   return (
-    <div className="space-y-6">
-      <div className="flex flex-col gap-4 rounded-[1.6rem] border bg-gradient-to-r from-emerald-500/10 via-background to-cyan-500/10 p-6 lg:flex-row lg:items-center lg:justify-between">
-        <div className="space-y-2">
-          <h2 className="text-3xl font-bold tracking-tight">Student Messages</h2>
-          <p className="max-w-2xl text-muted-foreground">
-            View faculty notices that were sent directly to your class or to your profile.
-          </p>
-        </div>
-        <div className="rounded-2xl border bg-background/80 px-4 py-3">
-          <p className="text-[11px] uppercase tracking-[0.18em] text-muted-foreground">Inbox count</p>
-          <p className="mt-1 text-2xl font-bold">{inbox.length}</p>
-        </div>
-      </div>
+    <div className="page-shell">
+      <PageHeader hideTitle title="Messages"
+        description="Faculty notices for your class and direct updates to your profile."
+        actions={
+          <Button type="button" variant="outline" className="rounded-full" onClick={() => navigate(routes.student.calendar)}>
+            View calendar
+          </Button>
+        }
+      />
 
       <Card className="glass-card border bg-card/40 backdrop-blur-md">
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
             <MessageSquare className="h-5 w-5 text-primary" />
             {profile?.name ?? "Student"} inbox
+            <Badge variant="secondary" className="ml-2 rounded-full">
+              {inbox.length}
+            </Badge>
           </CardTitle>
           <CardDescription>
             Messages for {profile?.batch ?? "your batch"} and direct notices from faculty.
@@ -88,14 +92,20 @@ export default function StudentMessages() {
                     </Badge>
                   ))}
                   {message.targetBatch ? <Badge variant="secondary">Batch: {message.targetBatch}</Badge> : null}
-                  {message.targetStudentName ? <Badge variant="secondary">Student: {message.targetStudentName}</Badge> : null}
+                  {message.targetStudentName ? (
+                    <Badge variant="secondary">Student: {message.targetStudentName}</Badge>
+                  ) : null}
                 </div>
               </div>
             ))
           ) : (
-            <div className="rounded-2xl border border-dashed bg-muted/20 px-4 py-10 text-center text-sm text-muted-foreground">
-              No faculty messages are available for your profile yet.
-            </div>
+            <EmptyState
+              icon={MessageSquare}
+              title="Inbox is empty"
+              description="When faculty send class or direct messages, they will appear here."
+              actionLabel="Check live classes"
+              onAction={() => navigate(routes.student.live)}
+            />
           )}
         </CardContent>
       </Card>

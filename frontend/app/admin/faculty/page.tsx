@@ -8,6 +8,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { PageHeader } from "@/components/app/page-header";
 
 type FacultyForm = {
   name: string;
@@ -84,17 +85,18 @@ export default function AdminFaculty() {
   };
 
   return (
-    <div className="space-y-6">
-      <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-        <div>
-          <h2 className="text-3xl font-bold tracking-tight">Faculty Directory</h2>
-          <p className="text-muted-foreground">Create, edit, and delete educator records with subject assignments.</p>
-        </div>
-        <Button variant="outline" className="rounded-xl gap-2" onClick={resetForm}>
-          <PlusCircle className="h-4 w-4" />
-          New faculty
-        </Button>
-      </div>
+    <div className="page-shell space-y-6">
+      <PageHeader
+        hideTitle
+        title="Faculty Directory"
+        description="Create, edit, and delete educator records with subject assignments."
+        actions={
+          <Button variant="outline" className="gap-2 rounded-xl" onClick={resetForm}>
+            <PlusCircle className="h-4 w-4" />
+            New faculty
+          </Button>
+        }
+      />
 
       <div className="grid gap-6 md:grid-cols-3">
         <Card className="glass-card border bg-card/40 backdrop-blur-md">

@@ -1,8 +1,10 @@
 "use client";
 
 import { useState, useEffect } from "react";
+import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import { Menu, X } from "lucide-react";
+import { routes } from "@/lib/routes";
 
 const navLinks = [
   { name: "Landing", href: "#" },
@@ -69,18 +71,18 @@ export function Navigation() {
 
           {/* Desktop CTA */}
           <div className="hidden md:flex items-center gap-4">
-            <button 
-              onClick={() => window.location.href = "/login"}
-              className={`text-foreground/70 hover:text-foreground transition-all duration-500 cursor-pointer ${isScrolled ? "text-xs" : "text-sm"}`}
+            <Link
+              href={routes.login}
+              className={`text-foreground/70 transition-all duration-500 hover:text-foreground ${isScrolled ? "text-xs" : "text-sm"}`}
             >
               Login
-            </button>
+            </Link>
             <Button
               size="sm"
-              className={`bg-foreground hover:bg-foreground/90 text-background rounded-full transition-all duration-500 cursor-pointer ${isScrolled ? "px-4 h-8 text-xs" : "px-6"}`}
-              onClick={() => window.location.href = "/select-role"}
+              className={`rounded-full bg-foreground text-background transition-all duration-500 hover:bg-foreground/90 ${isScrolled ? "h-8 px-4 text-xs" : "px-6"}`}
+              asChild
             >
-              Get Started
+              <Link href={routes.selectRole}>Get started</Link>
             </Button>
           </div>
 
@@ -137,24 +139,20 @@ export function Navigation() {
           }`}
           style={{ transitionDelay: isMobileMenuOpen ? "300ms" : "0ms" }}
           >
-            <Button 
-              variant="outline" 
-              className="flex-1 rounded-full h-14 text-base"
-              onClick={() => {
-                setIsMobileMenuOpen(false);
-                window.location.href = "/login";
-              }}
+            <Button
+              variant="outline"
+              className="h-14 flex-1 rounded-full text-base"
+              asChild
+              onClick={() => setIsMobileMenuOpen(false)}
             >
-              Login
+              <Link href={routes.login}>Login</Link>
             </Button>
-            <Button 
-              className="flex-1 bg-foreground text-background rounded-full h-14 text-base"
-              onClick={() => {
-                setIsMobileMenuOpen(false);
-                window.location.href = "/select-role";
-              }}
+            <Button
+              className="h-14 flex-1 rounded-full bg-foreground text-base text-background"
+              asChild
+              onClick={() => setIsMobileMenuOpen(false)}
             >
-              Get Started
+              <Link href={routes.selectRole}>Get started</Link>
             </Button>
           </div>
         </div>

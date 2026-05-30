@@ -1,4 +1,5 @@
 "use client";
+import { PageHeader } from "@/components/app/page-header";
 
 import { useAppStore } from "@/lib/store";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -7,11 +8,8 @@ export default function StudentProfile() {
   const { currentUser } = useAppStore();
 
   return (
-    <div className="space-y-6">
-      <div>
-        <h2 className="text-3xl font-bold tracking-tight">Student Profile</h2>
-        <p className="text-muted-foreground">View your academic credentials</p>
-      </div>
+    <div className="page-shell">
+      <PageHeader hideTitle title="Student Profile" description="View your academic credentials" />
 
       <Card className="glass-card border bg-card/40 backdrop-blur-md">
         <CardHeader>

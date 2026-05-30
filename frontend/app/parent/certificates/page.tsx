@@ -1,4 +1,5 @@
 "use client";
+import { PageHeader } from "@/components/app/page-header";
 
 import { useAppStore } from "@/lib/store";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
@@ -9,11 +10,8 @@ export default function ParentCertificates() {
   const child = students.find(s => s.parentName === "A. Rahman") || students[0];
 
   return (
-    <div className="space-y-6">
-      <div>
-        <h2 className="text-3xl font-bold tracking-tight">Verified Credentials</h2>
-        <p className="text-muted-foreground">Preview graduation badges achieved by dependents</p>
-      </div>
+    <div className="page-shell">
+      <PageHeader hideTitle title="Verified Credentials" description="Preview graduation badges achieved by dependents" />
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
         {child?.progress >= 80 ? (

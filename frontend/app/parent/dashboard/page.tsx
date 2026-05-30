@@ -11,6 +11,8 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { ResponsiveContainer, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip } from "recharts";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { PageHeader } from "@/components/app/page-header";
+import { routes } from "@/lib/routes";
 
 const marksData = [
   { subject: "Quiz 1", score: 85, average: 74 },
@@ -32,13 +34,17 @@ export default function ParentDashboard() {
   };
 
   return (
-    <div className="space-y-6">
-      
-      {/* Top Welcome Title */}
-      <div>
-        <h2 className="text-3xl font-bold tracking-tight">Parent Portal Dashboard</h2>
-        <p className="text-muted-foreground">Monitor performance scorecards, pay fees, and view children credentials</p>
-      </div>
+    <div className="page-shell">
+      <PageHeader
+        hideTitle
+        title="Dashboard"
+        description="Monitor performance, pay fees, and stay connected with faculty."
+        actions={
+          <Button type="button" className="rounded-full" onClick={() => router.push(routes.parent.fees)}>
+            Pay fees
+          </Button>
+        }
+      />
 
       {/* Children Summary Widgets */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6">

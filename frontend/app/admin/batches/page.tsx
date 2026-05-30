@@ -7,6 +7,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
+import { PageHeader } from "@/components/app/page-header";
 
 type BatchForm = {
   name: string;
@@ -65,17 +66,18 @@ export default function AdminBatches() {
   };
 
   return (
-    <div className="space-y-6">
-      <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-        <div>
-          <h2 className="text-3xl font-bold tracking-tight">Batches & Scheduling</h2>
-          <p className="text-muted-foreground">Create, edit, and delete cohorts while monitoring student load.</p>
-        </div>
-        <Button variant="outline" onClick={resetForm} className="rounded-xl gap-2">
-          <PlusCircle className="h-4 w-4" />
-          New batch
-        </Button>
-      </div>
+    <div className="page-shell space-y-6">
+      <PageHeader
+        hideTitle
+        title="Batches & Scheduling"
+        description="Create, edit, and delete cohorts while monitoring student load."
+        actions={
+          <Button variant="outline" onClick={resetForm} className="gap-2 rounded-xl">
+            <PlusCircle className="h-4 w-4" />
+            New batch
+          </Button>
+        }
+      />
 
       <Card className="glass-card border bg-card/40 backdrop-blur-md">
         <CardHeader>

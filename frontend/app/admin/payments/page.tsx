@@ -28,6 +28,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
+import { PageHeader } from "@/components/app/page-header";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { buildFeeReminderHtml, buildFeeReminderText, deliverNotification } from "@/lib/notifications";
@@ -194,37 +195,28 @@ export default function AdminPayments() {
   };
 
   return (
-    <div className="space-y-6">
-      <div className="flex flex-col gap-4 xl:flex-row xl:items-center xl:justify-between">
-        <div className="space-y-2">
-          <div className="flex items-center gap-2 text-sm text-muted-foreground">
-            <span>Finance</span>
-            <span>•</span>
-            <span>Payments</span>
+    <div className="page-shell space-y-6">
+      <PageHeader
+        hideTitle
+        title="Payments dashboard"
+        description="Monitor collections, generate invoices, and keep fee reminders moving without leaving the dashboard."
+        actions={
+          <div className="flex flex-wrap gap-2">
+            <Button variant="outline" className="rounded-full" onClick={() => addNotification("Payment report exported", "The latest summary is ready for download.")}>
+              <Download className="mr-2 h-4 w-4" />
+              Export report
+            </Button>
+            <Button variant="outline" className="rounded-full" onClick={handleSendAllReminders} disabled={sendingReminderFor === "bulk"}>
+              <Send className="mr-2 h-4 w-4" />
+              {sendingReminderFor === "bulk" ? "Sending..." : "Send reminders"}
+            </Button>
+            <Button className="rounded-full bg-primary px-5" onClick={openInvoiceDialog}>
+              <Plus className="mr-2 h-4 w-4" />
+              Generate invoice
+            </Button>
           </div>
-          <div className="space-y-1">
-            <h2 className="text-3xl font-semibold tracking-tight">Payments dashboard</h2>
-            <p className="max-w-2xl text-muted-foreground">
-              Monitor collections, generate invoices, and keep fee reminders moving without leaving the dashboard.
-            </p>
-          </div>
-        </div>
-
-        <div className="flex flex-wrap gap-3">
-          <Button variant="outline" className="rounded-full" onClick={() => addNotification("Payment report exported", "The latest summary is ready for download.")}>
-            <Download className="mr-2 h-4 w-4" />
-            Export report
-          </Button>
-          <Button variant="outline" className="rounded-full" onClick={handleSendAllReminders} disabled={sendingReminderFor === "bulk"}>
-            <Send className="mr-2 h-4 w-4" />
-            {sendingReminderFor === "bulk" ? "Sending..." : "Send reminders"}
-          </Button>
-          <Button className="rounded-full bg-primary px-5" onClick={openInvoiceDialog}>
-            <Plus className="mr-2 h-4 w-4" />
-            Generate invoice
-          </Button>
-        </div>
-      </div>
+        }
+      />
 
       <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
         {[

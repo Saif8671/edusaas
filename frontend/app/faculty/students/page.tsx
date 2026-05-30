@@ -6,16 +6,18 @@ import { Button } from "@/components/ui/button";
 import { Progress } from "@/components/ui/progress";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { StudentAcademicFileDrawer } from "@/components/student-academic-file-drawer";
+import { PageHeader } from "@/components/app/page-header";
 
 export default function FacultyStudents() {
   const { students } = useAppStore();
 
   return (
-    <div className="space-y-6">
-      <div className="flex flex-col gap-2">
-        <h2 className="text-3xl font-bold tracking-tight">Student Roster</h2>
-        <p className="text-muted-foreground">Track active enrollments, attendance, progress, and open the same academic preview used by admin.</p>
-      </div>
+    <div className="page-shell space-y-6">
+      <PageHeader
+        hideTitle
+        title="Student Roster"
+        description="Track active enrollments, attendance, progress, and open the same academic preview used by admin."
+      />
 
       <Card className="glass-card border bg-card/40 backdrop-blur-md">
         <CardContent className="pt-6">

@@ -7,6 +7,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
+import { PageHeader } from "@/components/app/page-header";
 
 const emptyCourse = {
   title: "",
@@ -63,17 +64,18 @@ export default function AdminCourses() {
   };
 
   return (
-    <div className="space-y-6">
-      <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-        <div>
-          <h2 className="text-3xl font-bold tracking-tight">Course Inventory</h2>
-          <p className="text-muted-foreground">Create course listings and sell them directly to students.</p>
-        </div>
-        <Button variant="outline" onClick={resetForm} className="rounded-xl gap-2">
-          <PlusCircle className="h-4 w-4" />
-          New course
-        </Button>
-      </div>
+    <div className="page-shell space-y-6">
+      <PageHeader
+        hideTitle
+        title="Course Inventory"
+        description="Create course listings and sell them directly to students."
+        actions={
+          <Button variant="outline" onClick={resetForm} className="gap-2 rounded-xl">
+            <PlusCircle className="h-4 w-4" />
+            New course
+          </Button>
+        }
+      />
 
       <Card className="glass-card border bg-card/40 backdrop-blur-md">
         <CardHeader>

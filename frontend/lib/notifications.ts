@@ -106,7 +106,7 @@ export async function deliverNotification(input: DeliverNotificationInput) {
 
 export function buildAttendanceAlertText(input: AttendanceAlertInput) {
   const lines = [
-    "EduSaaS Alert",
+    "EduLMS Alert",
     "",
     `Student: ${input.studentName}`,
     input.batch ? `Batch: ${input.batch}` : null,
@@ -115,7 +115,7 @@ export function buildAttendanceAlertText(input: AttendanceAlertInput) {
     input.note ? input.note : "Please contact the faculty team for support.",
     "",
     "Regards,",
-    "EduSaaS",
+    "EduLMS",
   ].filter(Boolean);
 
   return lines.join("\n");
@@ -126,20 +126,20 @@ export function buildAttendanceAlertHtml(input: AttendanceAlertInput) {
 
   return `
     <div style="font-family: Arial, sans-serif; line-height: 1.6; color: #0f172a;">
-      <h2 style="margin: 0 0 12px;">EduSaaS Alert</h2>
+      <h2 style="margin: 0 0 12px;">EduLMS Alert</h2>
       <p style="margin: 0 0 8px;"><strong>Student:</strong> ${input.studentName}</p>
       ${input.batch ? `<p style="margin: 0 0 8px;"><strong>Batch:</strong> ${input.batch}</p>` : ""}
       ${input.course ? `<p style="margin: 0 0 8px;"><strong>Course:</strong> ${input.course}</p>` : ""}
       <p style="margin: 0 0 8px;">Attendance has dropped to <strong>${input.attendancePct}%</strong>.</p>
       <p style="margin: 0 0 16px;">${note}</p>
-      <p style="margin: 0;">Regards,<br />EduSaaS</p>
+      <p style="margin: 0;">Regards,<br />EduLMS</p>
     </div>
   `;
 }
 
 export function buildFeeReminderText(input: FeeReminderInput) {
   return [
-    "EduSaaS Fee Reminder",
+    "EduLMS Fee Reminder",
     "",
     `Student: ${input.childName}`,
     `Invoice: ${input.invoiceId}`,
@@ -149,27 +149,27 @@ export function buildFeeReminderText(input: FeeReminderInput) {
     "Please complete the payment at the earliest.",
     "",
     "Regards,",
-    "EduSaaS",
+    "EduLMS",
   ].join("\n");
 }
 
 export function buildFeeReminderHtml(input: FeeReminderInput) {
   return `
     <div style="font-family: Arial, sans-serif; line-height: 1.6; color: #0f172a;">
-      <h2 style="margin: 0 0 12px;">EduSaaS Fee Reminder</h2>
+      <h2 style="margin: 0 0 12px;">EduLMS Fee Reminder</h2>
       <p style="margin: 0 0 8px;"><strong>Student:</strong> ${input.childName}</p>
       <p style="margin: 0 0 8px;"><strong>Invoice:</strong> ${input.invoiceId}</p>
       <p style="margin: 0 0 8px;"><strong>Amount Due:</strong> INR ${input.amount}</p>
       <p style="margin: 0 0 8px;"><strong>Due Date:</strong> ${input.dueDate}</p>
       <p style="margin: 0 0 16px;">Please complete the payment at the earliest.</p>
-      <p style="margin: 0;">Regards,<br />EduSaaS</p>
+      <p style="margin: 0;">Regards,<br />EduLMS</p>
     </div>
   `;
 }
 
 export function buildAssignmentDeadlineText(input: AssignmentDeadlineInput) {
   return [
-    "EduSaaS Assignment Reminder",
+    "EduLMS Assignment Reminder",
     "",
     `Assignment: ${input.title}`,
     `Course: ${input.course}`,
@@ -178,26 +178,26 @@ export function buildAssignmentDeadlineText(input: AssignmentDeadlineInput) {
     "Please submit before the deadline to avoid late penalties.",
     "",
     "Regards,",
-    "EduSaaS",
+    "EduLMS",
   ].join("\n");
 }
 
 export function buildAssignmentDeadlineHtml(input: AssignmentDeadlineInput) {
   return `
     <div style="font-family: Arial, sans-serif; line-height: 1.6; color: #0f172a;">
-      <h2 style="margin: 0 0 12px;">EduSaaS Assignment Reminder</h2>
+      <h2 style="margin: 0 0 12px;">EduLMS Assignment Reminder</h2>
       <p style="margin: 0 0 8px;"><strong>Assignment:</strong> ${input.title}</p>
       <p style="margin: 0 0 8px;"><strong>Course:</strong> ${input.course}</p>
       <p style="margin: 0 0 8px;"><strong>Deadline:</strong> ${input.deadline}</p>
       <p style="margin: 0 0 16px;">Please submit before the deadline to avoid late penalties.</p>
-      <p style="margin: 0;">Regards,<br />EduSaaS</p>
+      <p style="margin: 0;">Regards,<br />EduLMS</p>
     </div>
   `;
 }
 
 export function buildCertificateIssuedText(input: CertificateIssuedInput) {
   return [
-    "EduSaaS Certificate Issued",
+    "EduLMS Certificate Issued",
     "",
     `Student: ${input.studentName}`,
     `Course: ${input.course}`,
@@ -208,21 +208,21 @@ export function buildCertificateIssuedText(input: CertificateIssuedInput) {
     "Your completion certificate is now available for download.",
     "",
     "Regards,",
-    "EduSaaS",
+    "EduLMS",
   ].join("\n");
 }
 
 export function buildCertificateIssuedHtml(input: CertificateIssuedInput) {
   return `
     <div style="font-family: Arial, sans-serif; line-height: 1.6; color: #0f172a;">
-      <h2 style="margin: 0 0 12px;">EduSaaS Certificate Issued</h2>
+      <h2 style="margin: 0 0 12px;">EduLMS Certificate Issued</h2>
       <p style="margin: 0 0 8px;"><strong>Student:</strong> ${input.studentName}</p>
       <p style="margin: 0 0 8px;"><strong>Course:</strong> ${input.course}</p>
       <p style="margin: 0 0 8px;"><strong>Batch:</strong> ${input.batch}</p>
       <p style="margin: 0 0 8px;"><strong>Certificate ID:</strong> ${input.certificateId}</p>
       <p style="margin: 0 0 8px;"><strong>Issued by:</strong> ${input.issuer}</p>
       <p style="margin: 0 0 16px;">Your completion certificate is now available for download.</p>
-      <p style="margin: 0;">Regards,<br />EduSaaS</p>
+      <p style="margin: 0;">Regards,<br />EduLMS</p>
     </div>
   `;
 }

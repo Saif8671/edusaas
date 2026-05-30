@@ -5,6 +5,7 @@ import { useAppStore } from "@/lib/store";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { MessageSquare, Users, BellRing } from "lucide-react";
+import { PageHeader } from "@/components/app/page-header";
 
 function formatMessageTime(value: string) {
   return new Intl.DateTimeFormat("en-US", {
@@ -34,19 +35,18 @@ export default function ParentMessages() {
   );
 
   return (
-    <div className="space-y-6">
-      <div className="flex flex-col gap-4 rounded-[1.6rem] border bg-gradient-to-r from-amber-500/10 via-background to-rose-500/10 p-6 lg:flex-row lg:items-center lg:justify-between">
-        <div className="space-y-2">
-          <h2 className="text-3xl font-bold tracking-tight">Parent Messages</h2>
-          <p className="max-w-2xl text-muted-foreground">
-            Keep track of faculty notices that are addressed to you or to your child&apos;s class.
-          </p>
-        </div>
-        <div className="rounded-2xl border bg-background/80 px-4 py-3">
-          <p className="text-[11px] uppercase tracking-[0.18em] text-muted-foreground">Inbox count</p>
-          <p className="mt-1 text-2xl font-bold">{inbox.length}</p>
-        </div>
-      </div>
+    <div className="page-shell space-y-6">
+      <PageHeader
+        hideTitle
+        title="Parent Messages"
+        description="Keep track of faculty notices that are addressed to you or to your child's class."
+        actions={
+          <div className="rounded-xl border bg-card/60 px-4 py-2 text-sm">
+            <span className="text-muted-foreground">Inbox </span>
+            <span className="font-semibold">{inbox.length}</span>
+          </div>
+        }
+      />
 
       <Card className="glass-card border bg-card/40 backdrop-blur-md">
         <CardHeader>

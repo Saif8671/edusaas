@@ -6,6 +6,7 @@ import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle }
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { ShoppingBag, Star, Clock, ArrowRight, PencilLine, Trash2, PlusCircle } from "lucide-react";
+import { PageHeader } from "@/components/app/page-header";
 
 export default function AdminMarketplace() {
   const router = useRouter();
@@ -14,26 +15,24 @@ export default function AdminMarketplace() {
   const openCourseManager = () => router.push("/admin/courses");
 
   return (
-    <div className="space-y-6">
-      <div className="flex flex-col gap-4 rounded-[1.6rem] border bg-gradient-to-r from-primary/10 via-background to-emerald-500/10 p-6 md:flex-row md:items-center md:justify-between">
-        <div>
-          <h2 className="text-3xl font-bold tracking-tight">Course Marketplace</h2>
-          <p className="max-w-2xl text-muted-foreground">
-            This is a selling studio, not a buying cart. Admins create course listings, publish them for students,
-            and manage pricing, visibility, and sales readiness.
-          </p>
-        </div>
-        <div className="flex gap-2">
-          <Button onClick={openCourseManager} className="rounded-xl gap-2">
-            <PlusCircle className="h-4 w-4" />
-            Create listing
-          </Button>
-          <Button variant="outline" onClick={openCourseManager} className="rounded-xl gap-2">
-            Manage courses
-            <ArrowRight className="h-4 w-4" />
-          </Button>
-        </div>
-      </div>
+    <div className="page-shell space-y-6">
+      <PageHeader
+        hideTitle
+        title="Course Marketplace"
+        description="Create course listings, publish them for students, and manage pricing and visibility."
+        actions={
+          <div className="flex flex-wrap gap-2">
+            <Button onClick={openCourseManager} className="gap-2 rounded-xl">
+              <PlusCircle className="h-4 w-4" />
+              Create listing
+            </Button>
+            <Button variant="outline" onClick={openCourseManager} className="gap-2 rounded-xl">
+              Manage courses
+              <ArrowRight className="h-4 w-4" />
+            </Button>
+          </div>
+        }
+      />
 
       <div className="grid grid-cols-1 gap-6 md:grid-cols-3">
         <Card className="glass-card border bg-card/40 backdrop-blur-md">

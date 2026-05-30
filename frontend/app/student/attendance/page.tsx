@@ -1,4 +1,5 @@
 "use client";
+import { PageHeader } from "@/components/app/page-header";
 
 import { useMemo } from "react";
 import { Area, AreaChart, CartesianGrid, ResponsiveContainer, Tooltip, XAxis, YAxis, BarChart, Bar } from "recharts";
@@ -36,11 +37,12 @@ export default function StudentAttendance() {
   );
 
   return (
-    <div className="space-y-6">
-      <div>
-        <h2 className="text-3xl font-bold tracking-tight">Attendance Analytics</h2>
-        <p className="text-muted-foreground">A graphical view of your attendance trends and monthly presence.</p>
-      </div>
+    <div className="page-shell">
+      <PageHeader
+        hideTitle
+        title="Attendance"
+        description="Your attendance trends and monthly presence."
+      />
 
       <div className="grid gap-6 lg:grid-cols-[0.95fr_1.05fr]">
         <Card className="glass-card border bg-card/40 backdrop-blur-md">

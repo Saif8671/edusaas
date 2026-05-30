@@ -21,7 +21,7 @@ export async function POST(request: Request) {
     const subject = body.subject?.trim();
     const html = body.html?.trim();
     const text = body.text?.trim();
-    const from = body.from?.trim() || process.env.RESEND_FROM_EMAIL || "EduSaaS <noreply@edusaas.com>";
+    const from = body.from?.trim() || process.env.RESEND_FROM_EMAIL || "EduLMS <noreply@edulms.com>";
     const apiKey = process.env.RESEND_API_KEY;
 
     if (!to || !subject || (!html && !text)) {

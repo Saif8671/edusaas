@@ -1,4 +1,5 @@
 "use client";
+import { PageHeader } from "@/components/app/page-header";
 
 import { useMemo, useState } from "react";
 import { Users, CalendarDays, GraduationCap } from "lucide-react";
@@ -29,11 +30,8 @@ export default function FacultyBatches() {
   );
 
   return (
-    <div className="space-y-6">
-      <div>
-        <h2 className="text-3xl font-bold tracking-tight">My Active Batches</h2>
-        <p className="text-muted-foreground">Click a batch to inspect enrolled student names, attendance, and performance.</p>
-      </div>
+    <div className="page-shell">
+      <PageHeader hideTitle title="My Active Batches" description="Click a batch to inspect enrolled student names, attendance, and performance." />
 
       <div className="grid grid-cols-1 gap-6 xl:grid-cols-[0.95fr_1.05fr]">
         <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-1">

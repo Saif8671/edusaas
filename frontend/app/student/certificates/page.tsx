@@ -1,4 +1,5 @@
 "use client";
+import { PageHeader } from "@/components/app/page-header";
 
 import { useAppStore } from "@/lib/store";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
@@ -10,11 +11,8 @@ export default function StudentCertificates() {
   const profile = students.find(s => s.id === "STU-001") || students[0];
 
   return (
-    <div className="space-y-6">
-      <div>
-        <h2 className="text-3xl font-bold tracking-tight">Certificates Registry</h2>
-        <p className="text-muted-foreground">Download blockchain-verified credentials for completed courses</p>
-      </div>
+    <div className="page-shell">
+      <PageHeader hideTitle title="Certificates Registry" description="Download blockchain-verified credentials for completed courses" />
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
         {profile?.progress >= 80 ? (

@@ -1,15 +1,13 @@
 "use client";
+import { PageHeader } from "@/components/app/page-header";
 
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { MessageSquare } from "lucide-react";
 
 export default function StudentCommunity() {
   return (
-    <div className="space-y-6">
-      <div>
-        <h2 className="text-3xl font-bold tracking-tight">Student Chatrooms</h2>
-        <p className="text-muted-foreground">Collaborate on assignments and chat with mentors</p>
-      </div>
+    <div className="page-shell">
+      <PageHeader hideTitle title="Student Chatrooms" description="Collaborate on assignments and chat with mentors" />
 
       <Card className="glass-card border bg-card/40 backdrop-blur-md">
         <CardHeader>

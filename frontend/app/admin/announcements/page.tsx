@@ -8,6 +8,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Megaphone, MessageSquareMore, PencilLine, Send, Trash2, Users } from "lucide-react";
+import { PageHeader } from "@/components/app/page-header";
 
 const audienceOptions = ["Faculty", "Students", "Parents", "Institute"] as const;
 
@@ -61,23 +62,21 @@ export default function AdminAnnouncements() {
   };
 
   return (
-    <div className="space-y-6">
-      <div className="flex flex-col gap-4 rounded-[1.6rem] border bg-gradient-to-r from-sky-500/10 via-background to-primary/10 p-6 lg:flex-row lg:items-center lg:justify-between">
-        <div className="space-y-2">
-          <h2 className="text-3xl font-bold tracking-tight">Institute Messaging</h2>
-          <p className="max-w-2xl text-muted-foreground">
-            Send WhatsApp-style notices to faculty, students, parents, or the entire institute with targeted audience
-            selection.
-          </p>
-        </div>
-        <div className="flex items-center gap-2 rounded-2xl border bg-background/70 px-4 py-3">
-          <MessageSquareMore className="h-5 w-5 text-primary" />
-          <div>
-            <p className="text-sm font-semibold">{announcements.length} total messages</p>
-            <p className="text-xs text-muted-foreground">Broadcasts, alerts, and quick updates</p>
+    <div className="page-shell space-y-6">
+      <PageHeader
+        hideTitle
+        title="Institute Messaging"
+        description="Send notices to faculty, students, parents, or the entire institute with targeted audience selection."
+        actions={
+          <div className="flex items-center gap-2 rounded-xl border bg-card/60 px-4 py-2 text-sm">
+            <MessageSquareMore className="h-4 w-4 text-primary" />
+            <span>
+              <span className="font-semibold">{announcements.length}</span>
+              <span className="text-muted-foreground"> broadcasts</span>
+            </span>
           </div>
-        </div>
-      </div>
+        }
+      />
 
       <div className="grid gap-6 lg:grid-cols-[1.1fr_0.9fr]">
         <Card className="glass-card border bg-card/40 backdrop-blur-md">

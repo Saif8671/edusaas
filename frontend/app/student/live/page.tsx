@@ -6,6 +6,7 @@ import { useAppStore, type LiveSessionData } from "@/lib/store";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { PageHeader } from "@/components/app/page-header";
 
 function parseSessionTime(time: string) {
   const normalized = time.trim().toUpperCase();
@@ -76,11 +77,12 @@ export default function StudentLive() {
   };
 
   return (
-    <div className="space-y-6">
-      <div className="space-y-2">
-        <h2 className="text-3xl font-bold tracking-tight">Live Classes</h2>
-        <p className="text-muted-foreground">Join Zoom or other scheduled live broadcasts from your faculty.</p>
-      </div>
+    <div className="page-shell space-y-6">
+      <PageHeader
+        hideTitle
+        title="Live Classes"
+        description="Join Zoom or other scheduled live broadcasts from your faculty."
+      />
 
       <Card className="glass-card border bg-card/40 backdrop-blur-md">
         <CardHeader>
