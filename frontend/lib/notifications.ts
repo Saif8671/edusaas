@@ -113,6 +113,22 @@ export async function deliverNotification(input: DeliverNotificationInput) {
   await Promise.all(tasks);
 }
 
+/** Send fee/assignment reminders via WhatsApp only (default channel for finance alerts). */
+export async function deliverWhatsAppNotification(input: {
+  toPhone: string;
+  body: string;
+}) {
+  const phone = input.toPhone?.trim();
+  if (!phone) {
+    throw new Error("A parent or student phone number is required for WhatsApp delivery.");
+  }
+
+  return postJson<ApiResponse>("/api/notifications/whatsapp", {
+    to: normalizeWhatsAppRecipient(phone),
+    body: input.body,
+  });
+}
+
 export function buildAttendanceAlertText(input: AttendanceAlertInput) {
   const lines = [
     "EduLMS Alert",

@@ -227,7 +227,7 @@ export function StudentAcademicFileDrawer({ student, trigger, triggerClassName }
 
           <div className="flex-1 overflow-y-auto px-6 py-6">
             <div className="space-y-6">
-              <Card className="overflow-hidden rounded-[1.8rem] border-border/60 bg-background/90 shadow-sm">
+              <Card className="rounded-[1.8rem] border-border/60 bg-background/90 shadow-sm">
                 <CardContent className="grid gap-6 p-6 xl:grid-cols-[1.2fr_1fr_1fr_1fr] xl:items-center">
                   <div className="flex items-center gap-5">
                     <div className="relative">

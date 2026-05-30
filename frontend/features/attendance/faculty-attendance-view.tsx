@@ -6,6 +6,7 @@ import {
   Building2,
   CalendarDays,
   CheckCheck,
+  ClipboardCheck,
   ChevronDown,
   ChevronLeft,
   ChevronRight,
@@ -73,7 +74,13 @@ export function FacultyAttendanceView({ title, subtitle, actionLabel, secondaryA
   const [sendingAlertFor, setSendingAlertFor] = useState<string | null>(null);
   const [savingAttendance, setSavingAttendance] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const attendanceTableRef = useRef<HTMLDivElement>(null);
   const selectedBatchId = "QC-2026";
+
+  const scrollToAttendanceTable = () => {
+    attendanceTableRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
+    toast.info("Mark students present, absent, or late, then save the session.");
+  };
 
   const dispatchAlert = async (rollNo: string) => {
     const student = students.find((candidate) => candidate.id === rollNo);
@@ -280,7 +287,11 @@ export function FacultyAttendanceView({ title, subtitle, actionLabel, secondaryA
                 {formatShortDate(calendarDate)}
                 <ChevronDown className="h-4 w-4" />
               </Button>
-              <Button className="h-10 rounded-lg px-4" onClick={exportAttendanceReport}>
+              <Button className="h-10 rounded-lg px-4" onClick={scrollToAttendanceTable}>
+                <ClipboardCheck className="h-4 w-4" />
+                {actionLabel}
+              </Button>
+              <Button variant="outline" className="h-10 rounded-lg px-4" onClick={exportAttendanceReport}>
                 <Download className="h-4 w-4" />
                 {tertiaryActionLabel}
               </Button>
@@ -330,7 +341,8 @@ export function FacultyAttendanceView({ title, subtitle, actionLabel, secondaryA
         </Card>
 
         <div className="grid gap-6 lg:grid-cols-12">
-          <Card className="attendance-panel lg:col-span-8">
+          <div ref={attendanceTableRef} className="lg:col-span-8">
+          <Card className="attendance-panel">
             <CardHeader className="px-4 pb-3 pt-4 sm:px-5 sm:pt-5">
               <SectionHeader title={`Take attendance — ${selectedBatchId}`} actionLabel="Bulk actions" onAction={() => fileInputRef.current?.click()} />
             </CardHeader>
@@ -374,6 +386,7 @@ export function FacultyAttendanceView({ title, subtitle, actionLabel, secondaryA
               </Table>
             </AttendanceTableShell>
           </Card>
+          </div>
 
           <div className="flex flex-col gap-6 lg:col-span-4">
             <Card className="attendance-panel">
@@ -398,7 +411,9 @@ export function FacultyAttendanceView({ title, subtitle, actionLabel, secondaryA
               <CardHeader className="px-4 pb-3 pt-4 sm:px-5 sm:pt-5">
                 <SectionHeader title="Quick actions" onAction={() => toast.info("Attendance shortcuts are available in the action tiles below.")} />
               </CardHeader>
-              <CardContent className="grid grid-cols-2 gap-2 px-4 pb-4 sm:px-5 sm:pb-5">
+              <CardContent className="grid grid-cols-2 gap-2 px-4 pb-4 sm:grid-cols-2 sm:px-5 sm:pb-5 xl:grid-cols-1">
+                <QuickActionTile label="Take attendance" helper="Open session table" icon={ClipboardCheck} tone="bg-primary/15 text-primary" onClick={scrollToAttendanceTable} />
+                <QuickActionTile label="Save session" helper="Lock today's marks" icon={ShieldCheck} tone="bg-sky-500/15 text-sky-600" onClick={saveAttendance} />
                 <QuickActionTile label="Bulk upload" helper="CSV / Excel" icon={Upload} tone="bg-violet-500/15 text-violet-600" onClick={() => fileInputRef.current?.click()} />
                 <QuickActionTile label="Copy yesterday" helper="Reuse last day" icon={Copy} tone="bg-blue-500/15 text-blue-600" onClick={applyLastSession} />
                 <QuickActionTile label="Mark all present" helper="Entire class" icon={CheckCheck} tone="bg-emerald-500/15 text-emerald-600" onClick={markAllPresent} />

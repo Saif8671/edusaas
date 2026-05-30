@@ -84,7 +84,11 @@ export interface AssignmentSubmission {
   notes?: string;
   status: "Submitted" | "Reviewed";
   marks?: string;
+  grade?: string;
   feedback?: string;
+  strengths?: string[];
+  improvements?: string[];
+  evaluatedAt?: string;
 }
 
 export interface AssignmentData {
@@ -235,8 +239,14 @@ interface AppStore {
   reviewAssignmentSubmission: (
     assignmentId: string,
     submissionId: string,
-    marks: string,
-    feedback: string,
+    evaluation: {
+      marks: string;
+      grade?: string;
+      feedback: string;
+      strengths?: string[];
+      improvements?: string[];
+      evaluatedAt?: string;
+    },
   ) => void;
   saveAttendanceSession: (session: Omit<AttendanceSessionData, "id" | "capturedAt">) => void;
 
@@ -488,26 +498,33 @@ export const useAppStore = create<AppStore>()(
       submitAssignment: (id, submission) => set((state) => {
         const submittedBy = state.currentUser?.name ?? "Saif Rahman";
         const submittedStudent = state.students.find((student) => student.id === state.currentUser?.id) ?? state.students[0];
+        const studentId = submittedStudent?.id ?? state.currentUser?.id ?? "STU-001";
         const submittedAt = new Date().toISOString().slice(0, 16).replace("T", " ");
         const updated = state.assignments.map((asm) => {
           if (asm.id !== id) return asm;
-          const submissions = [
-            ...(asm.submissions ?? []),
-            {
-              id: "SUB-" + Date.now(),
-              studentId: submittedStudent?.id ?? state.currentUser?.id ?? "STU-001",
-              studentName: submittedBy,
-              studentEmail: submittedStudent?.email,
-              studentPhone: submittedStudent?.phone,
-              submittedAt,
-              fileName: submission?.fileName ?? `${asm.title.toLowerCase().replace(/\s+/g, "-")}.pdf`,
-              fileSize: submission?.fileSize,
-              fileType: submission?.fileType ?? "application/pdf",
-              notes: submission?.notes ?? `${submittedBy} submitted the assignment from the student portal.`,
-              status: "Submitted" as const,
-            },
-          ];
-          return { ...asm, status: "Submitted" as const, submissions };
+          const existing = (asm.submissions ?? []).find((item) => item.studentId === studentId);
+          const nextSubmission = {
+            id: existing?.id ?? "SUB-" + Date.now(),
+            studentId,
+            studentName: submittedBy,
+            studentEmail: submittedStudent?.email,
+            studentPhone: submittedStudent?.phone,
+            submittedAt,
+            fileName: submission?.fileName ?? `${asm.title.toLowerCase().replace(/\s+/g, "-")}.pdf`,
+            fileSize: submission?.fileSize,
+            fileType: submission?.fileType ?? "application/pdf",
+            notes: submission?.notes ?? `${submittedBy} submitted the assignment from the student portal.`,
+            status: "Submitted" as const,
+          };
+          const submissions = existing
+            ? (asm.submissions ?? []).map((item) => (item.studentId === studentId ? nextSubmission : item))
+            : [...(asm.submissions ?? []), nextSubmission];
+          const hasPendingReview = submissions.some((item) => item.status === "Submitted");
+          return {
+            ...asm,
+            status: hasPendingReview ? ("Submitted" as const) : asm.status,
+            submissions,
+          };
         });
         return { assignments: updated };
       }),
@@ -562,15 +579,31 @@ export const useAppStore = create<AppStore>()(
       deleteAssignment: (id) => set((state) => ({
         assignments: state.assignments.filter((assignment) => assignment.id !== id)
       })),
-      reviewAssignmentSubmission: (assignmentId, submissionId, marks, feedback) => set((state) => ({
+      reviewAssignmentSubmission: (assignmentId, submissionId, evaluation) => set((state) => ({
         assignments: state.assignments.map((assignment) => {
           if (assignment.id !== assignmentId) return assignment;
           const submissions = (assignment.submissions ?? []).map((submission) =>
             submission.id === submissionId
-              ? { ...submission, status: "Reviewed" as const, marks, feedback }
+              ? {
+                  ...submission,
+                  status: "Reviewed" as const,
+                  marks: evaluation.marks,
+                  grade: evaluation.grade,
+                  feedback: evaluation.feedback,
+                  strengths: evaluation.strengths,
+                  improvements: evaluation.improvements,
+                  evaluatedAt: evaluation.evaluatedAt ?? new Date().toISOString(),
+                }
               : submission,
           );
-          return { ...assignment, status: "Reviewed" as const, grade: marks, feedback, submissions };
+          const reviewedSubmission = submissions.find((s) => s.id === submissionId);
+          return {
+            ...assignment,
+            status: "Reviewed" as const,
+            grade: evaluation.grade ?? evaluation.marks,
+            feedback: evaluation.feedback,
+            submissions,
+          };
         }),
       })),
       saveAttendanceSession: (session) => set((state) => {

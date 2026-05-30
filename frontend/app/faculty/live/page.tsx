@@ -45,6 +45,11 @@ type ZoomMeetingResponse = {
   };
 };
 
+type ZoomMeetingErrorResponse = {
+  error?: string;
+  details?: string;
+};
+
 const emptySession: LiveSessionForm = {
   title: "",
   batch: "",
@@ -74,8 +79,13 @@ async function createZoomMeeting(form: LiveSessionForm) {
   });
 
   if (!response.ok) {
-    const details = await response.text();
-    throw new Error(details || "Unable to create the Zoom meeting.");
+    const fallbackText = await response.text();
+    try {
+      const payload = JSON.parse(fallbackText) as ZoomMeetingErrorResponse;
+      throw new Error(payload.details ? `${payload.error ?? "Unable to create the Zoom meeting."} ${payload.details}` : payload.error ?? "Unable to create the Zoom meeting.");
+    } catch {
+      throw new Error(fallbackText || "Unable to create the Zoom meeting.");
+    }
   }
 
   return (await response.json()) as ZoomMeetingResponse;

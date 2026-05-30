@@ -334,7 +334,7 @@ export function AdminCertificateStudio({ student }: AdminCertificateStudioProps)
   };
 
   return (
-    <Card className="glass-card overflow-hidden rounded-[1.8rem] border-border/60 bg-background/80">
+    <Card className="glass-card rounded-[1.8rem] border-border/60 bg-background/80">
       <CardHeader className="border-b bg-gradient-to-r from-emerald-500/10 via-transparent to-amber-500/10">
         <div className="flex flex-wrap items-start justify-between gap-4">
           <div>
@@ -460,7 +460,7 @@ export function AdminCertificateStudio({ student }: AdminCertificateStudioProps)
               </div>
             </div>
 
-            <div className="overflow-hidden rounded-[1.6rem] border bg-white p-4 shadow-sm">
+            <div className="rounded-[1.6rem] border bg-white p-4 shadow-sm">
               <div className="mb-3 flex items-center justify-between gap-3">
                 <div>
                   <p className="text-sm font-medium">Certificate preview</p>

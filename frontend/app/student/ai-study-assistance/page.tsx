@@ -6,6 +6,8 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Label } from "@/components/ui/label";
 import {
   Bot,
   BookOpen,
@@ -23,8 +25,10 @@ import {
   SlidersHorizontal,
   Sparkles,
   Table2,
+  Upload,
   Video,
   Presentation,
+  GraduationCap,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { toast } from "@/lib/toast";
@@ -37,6 +41,7 @@ type SourceItem = {
   summary: string;
   type: string;
   selected: boolean;
+  content?: string;
 };
 
 type ChatMessage = {
@@ -52,10 +57,19 @@ type AssistantResponse = {
   keyPoints?: string[];
   studySteps?: string[];
   followUps?: string[];
-  quiz?: Array<{ question: string; answer: string }>;
+  topic?: string;
+  questionCount?: number;
+  quiz?: Array<{ question: string; answer: string; options?: string[] }>;
+  flashcards?: Array<{ front: string; back: string }>;
+  mindMap?: { central: string; branches: Array<{ label: string; children: string[] }> };
+  slides?: Array<{ title: string; bullets: string[] }>;
+  report?: { title: string; sections: Array<{ heading: string; content: string }> };
+  infographic?: { title: string; highlights: Array<{ label: string; value: string }>; steps: string[]; tip: string };
+  dataTable?: { headers: string[]; rows: string[][] };
   studioPreview?: { title: string; details: string[] };
   sourcesUsed?: Array<{ title: string }>;
   modeLabel?: string;
+  teachingMode?: boolean;
 };
 
 type StudioOption = {
@@ -174,7 +188,13 @@ export default function StudentAiStudyAssistancePage() {
   const [lastResponse, setLastResponse] = useState<AssistantResponse | null>(null);
   const [status, setStatus] = useState("Ready to help");
   const [sending, setSending] = useState(false);
+  const [testDialogOpen, setTestDialogOpen] = useState(false);
+  const [testTopic, setTestTopic] = useState("");
+  const [testQuestionCount, setTestQuestionCount] = useState("5");
+  const [flippedCards, setFlippedCards] = useState<Record<number, boolean>>({});
+  const [revealedAnswers, setRevealedAnswers] = useState<Record<number, boolean>>({});
   const newSourceInputRef = useRef<HTMLInputElement>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     setSources(initialSources);
@@ -221,7 +241,39 @@ export default function StudentAiStudyAssistancePage() {
     setSources((current) => current.map((source) => ({ ...source, selected: false })));
   };
 
-  const handleSend = async (overrideMessage?: string) => {
+  const handleFileUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (!file) return;
+
+    const maxSize = 512 * 1024;
+    if (file.size > maxSize) {
+      toast.error("File must be under 512 KB for demo upload.");
+      return;
+    }
+
+    try {
+      const text = await file.text();
+      setSources((current) => [
+        {
+          id: `upload-${Date.now()}`,
+          title: file.name,
+          summary: `Uploaded ${file.type || "file"} — ${Math.round(file.size / 1024)} KB`,
+          type: "Upload",
+          selected: true,
+          content: text.slice(0, 4000),
+        },
+        ...current,
+      ]);
+      setStatus(`Uploaded ${file.name}`);
+      toast.success("File added as source");
+    } catch {
+      toast.error("Could not read the file.");
+    } finally {
+      event.target.value = "";
+    }
+  };
+
+  const handleSend = async (overrideMessage?: string, options?: { testTopic?: string; questionCount?: number; studio?: string }) => {
     const prompt = (overrideMessage ?? message).trim();
     if (!prompt || sending) return;
 
@@ -241,10 +293,12 @@ export default function StudentAiStudyAssistancePage() {
     setMessage("");
     setSending(true);
     setStatus("Thinking...");
+    setFlippedCards({});
+    setRevealedAnswers({});
 
     try {
-      const backendUrl = process.env.NEXT_PUBLIC_BACKEND_URL ?? "http://localhost:5000";
-      const response = await fetch(`${backendUrl}/api/study-assistant`, {
+      const studioMode = options?.studio ?? selectedStudio;
+      const response = await fetch("/api/study-assistant", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -254,12 +308,15 @@ export default function StudentAiStudyAssistancePage() {
           studentName: profile?.name,
           course: profile?.course,
           batch: profile?.batch,
-          studio: selectedStudio,
+          studio: studioMode,
+          testTopic: options?.testTopic,
+          questionCount: options?.questionCount,
           sources: selectedSources.map((source) => ({
             id: source.id,
             title: source.title,
             summary: source.summary,
             type: source.type,
+            content: source.content,
           })),
         }),
       });
@@ -310,6 +367,175 @@ export default function StudentAiStudyAssistancePage() {
     }
   };
 
+  const startTest = () => {
+    const topic = testTopic.trim();
+    const count = Number.parseInt(testQuestionCount, 10);
+    if (!topic) {
+      toast.error("Enter a topic for your test.");
+      return;
+    }
+    setTestDialogOpen(false);
+    setSelectedStudio("quiz");
+    void handleSend(`Take test on topic: ${topic}`, { testTopic: topic, questionCount: count, studio: "quiz" });
+  };
+
+  const renderStudioOutput = () => {
+    if (!lastResponse) return null;
+
+    if (lastResponse.flashcards?.length && (selectedStudio === "flashcards" || lastResponse.modeLabel?.includes("Flashcard"))) {
+      return (
+        <div className="space-y-3">
+          <p className="text-xs uppercase tracking-[0.18em] text-muted-foreground">Flashcards</p>
+          {lastResponse.flashcards.map((card, index) => (
+            <button
+              key={card.front}
+              type="button"
+              onClick={() => setFlippedCards((current) => ({ ...current, [index]: !current[index] }))}
+              className="w-full rounded-2xl border bg-background/80 p-4 text-left transition hover:border-primary/30"
+            >
+              <p className="text-xs text-muted-foreground">{flippedCards[index] ? "Answer" : "Question"}</p>
+              <p className="mt-2 font-medium">{flippedCards[index] ? card.back : card.front}</p>
+            </button>
+          ))}
+        </div>
+      );
+    }
+
+    if (lastResponse.quiz?.length && (selectedStudio === "quiz" || lastResponse.modeLabel?.includes("Test") || lastResponse.modeLabel?.includes("Quiz"))) {
+      return (
+        <div className="space-y-3">
+          <p className="text-xs uppercase tracking-[0.18em] text-muted-foreground">Practice test — {lastResponse.topic ?? "Topic"}</p>
+          {lastResponse.quiz.map((item, index) => (
+            <div key={item.question} className="rounded-2xl border bg-background/80 p-4">
+              <p className="font-medium">Q{index + 1}. {item.question}</p>
+              {item.options?.length ? (
+                <div className="mt-2 space-y-1">
+                  {item.options.map((option) => (
+                    <p key={option} className="text-sm text-muted-foreground">• {option}</p>
+                  ))}
+                </div>
+              ) : null}
+              <Button
+                variant="ghost"
+                size="sm"
+                className="mt-2 rounded-full"
+                onClick={() => setRevealedAnswers((current) => ({ ...current, [index]: !current[index] }))}
+              >
+                {revealedAnswers[index] ? "Hide answer" : "Show answer"}
+              </Button>
+              {revealedAnswers[index] ? <p className="mt-2 text-sm text-emerald-700">{item.answer}</p> : null}
+            </div>
+          ))}
+        </div>
+      );
+    }
+
+    if (lastResponse.mindMap && selectedStudio === "mind-map") {
+      return (
+        <div className="space-y-3">
+          <p className="text-xs uppercase tracking-[0.18em] text-muted-foreground">Mind map</p>
+          <div className="rounded-2xl border bg-primary/5 p-4 text-center">
+            <p className="text-lg font-semibold">{lastResponse.mindMap.central}</p>
+          </div>
+          {lastResponse.mindMap.branches.map((branch) => (
+            <div key={branch.label} className="rounded-2xl border bg-background/80 p-3">
+              <p className="font-medium text-primary">{branch.label}</p>
+              <ul className="mt-2 space-y-1 text-sm text-muted-foreground">
+                {branch.children.map((child) => (
+                  <li key={child}>↳ {child}</li>
+                ))}
+              </ul>
+            </div>
+          ))}
+        </div>
+      );
+    }
+
+    if (lastResponse.slides?.length && selectedStudio === "slide-deck") {
+      return (
+        <div className="space-y-3">
+          <p className="text-xs uppercase tracking-[0.18em] text-muted-foreground">Slide deck / PPT</p>
+          {lastResponse.slides.map((slide, index) => (
+            <div key={slide.title} className="rounded-2xl border bg-background/80 p-4">
+              <p className="text-xs text-muted-foreground">Slide {index + 1}</p>
+              <p className="mt-1 font-semibold">{slide.title}</p>
+              <ul className="mt-2 space-y-1 text-sm text-muted-foreground">
+                {slide.bullets.map((bullet) => (
+                  <li key={bullet}>• {bullet}</li>
+                ))}
+              </ul>
+            </div>
+          ))}
+        </div>
+      );
+    }
+
+    if (lastResponse.report && selectedStudio === "reports") {
+      return (
+        <div className="space-y-3">
+          <p className="text-xs uppercase tracking-[0.18em] text-muted-foreground">Study report</p>
+          <p className="text-lg font-semibold">{lastResponse.report.title}</p>
+          {lastResponse.report.sections.map((section) => (
+            <div key={section.heading} className="rounded-2xl border bg-background/80 p-4">
+              <p className="font-medium">{section.heading}</p>
+              <p className="mt-2 text-sm leading-6 text-muted-foreground">{section.content}</p>
+            </div>
+          ))}
+        </div>
+      );
+    }
+
+    if (lastResponse.infographic && selectedStudio === "infographic") {
+      return (
+        <div className="space-y-3">
+          <p className="text-xs uppercase tracking-[0.18em] text-muted-foreground">Infographic</p>
+          <p className="text-lg font-semibold">{lastResponse.infographic.title}</p>
+          <div className="grid grid-cols-2 gap-2">
+            {lastResponse.infographic.highlights.map((item) => (
+              <div key={item.label} className="rounded-2xl border bg-gradient-to-br from-violet-500/10 to-violet-500/5 p-3">
+                <p className="text-xs text-muted-foreground">{item.label}</p>
+                <p className="mt-1 font-semibold">{item.value}</p>
+              </div>
+            ))}
+          </div>
+          <div className="flex flex-wrap gap-2">
+            {lastResponse.infographic.steps.map((step, index) => (
+              <Badge key={step} variant="outline" className="rounded-full">{index + 1}. {step}</Badge>
+            ))}
+          </div>
+          <p className="text-sm text-muted-foreground">{lastResponse.infographic.tip}</p>
+        </div>
+      );
+    }
+
+    if (lastResponse.dataTable && selectedStudio === "data-table") {
+      return (
+        <div className="overflow-x-auto rounded-2xl border">
+          <table className="w-full text-sm">
+            <thead>
+              <tr className="border-b bg-muted/40">
+                {lastResponse.dataTable.headers.map((header) => (
+                  <th key={header} className="px-3 py-2 text-left font-medium">{header}</th>
+                ))}
+              </tr>
+            </thead>
+            <tbody>
+              {lastResponse.dataTable.rows.map((row) => (
+                <tr key={row.join("-")} className="border-b">
+                  {row.map((cell) => (
+                    <td key={cell} className="px-3 py-2 text-muted-foreground">{cell}</td>
+                  ))}
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      );
+    }
+
+    return null;
+  };
+
   return (
     <div className="page-shell relative isolate min-w-0 overflow-hidden pb-6">
       <div className="pointer-events-none absolute inset-x-0 top-0 -z-10 h-64 bg-[radial-gradient(circle_at_top_left,rgba(59,130,246,0.12),transparent_35%),radial-gradient(circle_at_top_right,rgba(16,185,129,0.10),transparent_32%),linear-gradient(180deg,rgba(255,255,255,0.7),transparent)] dark:bg-[radial-gradient(circle_at_top_left,rgba(59,130,246,0.18),transparent_35%),radial-gradient(circle_at_top_right,rgba(16,185,129,0.12),transparent_32%),linear-gradient(180deg,rgba(15,23,42,0.18),transparent)]" />
@@ -320,6 +546,10 @@ export default function StudentAiStudyAssistancePage() {
         description="Chat with AI using your course sources and generate quizzes, flashcards, and summaries."
         actions={
           <div className="flex flex-wrap gap-2">
+            <Button type="button" size="sm" variant="outline" onClick={() => setTestDialogOpen(true)} disabled={sending}>
+              <GraduationCap className="mr-2 h-4 w-4" />
+              Take test
+            </Button>
             <Button type="button" size="sm" onClick={() => handleSend(studioPrompt(selectedStudio))} disabled={sending}>
               {sending ? "Generating..." : "Generate"}
             </Button>
@@ -363,13 +593,22 @@ export default function StudentAiStudyAssistancePage() {
             </div>
 
             <div className="space-y-3">
+              <input ref={fileInputRef} type="file" accept=".txt,.md,.pdf,.doc,.docx,.csv,.json" className="hidden" onChange={handleFileUpload} />
+              <Button
+                variant="outline"
+                className="w-full justify-center rounded-2xl border-dashed bg-background/70"
+                onClick={() => fileInputRef.current?.click()}
+              >
+                <Upload className="mr-2 h-4 w-4" />
+                Upload notes / file
+              </Button>
               <Button
                 variant="outline"
                 className="w-full justify-center rounded-2xl border-dashed bg-background/70"
                 onClick={() => newSourceInputRef.current?.focus()}
               >
                 <Plus className="mr-2 h-4 w-4" />
-                Add sources
+                Add topic source
               </Button>
 
               <div className="rounded-[1.5rem] border border-border/60 bg-background/80 p-4 shadow-sm">
@@ -693,6 +932,7 @@ export default function StudentAiStudyAssistancePage() {
                     </div>
                   ))}
                 </div>
+                <div className="mt-4">{renderStudioOutput()}</div>
               </div>
             ) : null}
 
@@ -712,6 +952,48 @@ export default function StudentAiStudyAssistancePage() {
           </CardContent>
         </Card>
       </div>
+
+      <Dialog open={testDialogOpen} onOpenChange={setTestDialogOpen}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>Take a practice test</DialogTitle>
+            <DialogDescription>
+              Choose a topic and how many questions you want. The AI will generate a test from your selected sources.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="grid gap-4 py-2">
+            <div className="space-y-2">
+              <Label htmlFor="test-topic">Topic</Label>
+              <Input
+                id="test-topic"
+                value={testTopic}
+                onChange={(event) => setTestTopic(event.target.value)}
+                placeholder="e.g. Newton's laws, Data structures"
+                className="rounded-2xl"
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="test-count">Number of questions</Label>
+              <Input
+                id="test-count"
+                type="number"
+                min={1}
+                max={10}
+                value={testQuestionCount}
+                onChange={(event) => setTestQuestionCount(event.target.value)}
+                className="rounded-2xl"
+              />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setTestDialogOpen(false)}>Cancel</Button>
+            <Button onClick={startTest} disabled={sending}>
+              <GraduationCap className="mr-2 h-4 w-4" />
+              Start test
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

@@ -6,6 +6,7 @@ import {
   Building2,
   CalendarDays,
   CheckCheck,
+  ClipboardCheck,
   ChevronDown,
   ChevronLeft,
   ChevronRight,
@@ -74,7 +75,13 @@ export function AdminAttendanceView({ title, subtitle, actionLabel, secondaryAct
   const [sendingAlertFor, setSendingAlertFor] = useState<string | null>(null);
   const [savingAttendance, setSavingAttendance] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const attendanceTableRef = useRef<HTMLDivElement>(null);
   const selectedBatch = batches.find((batch) => batch.id === "QC-2026") ?? batches[0];
+
+  const scrollToAttendanceTable = () => {
+    attendanceTableRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
+    toast.info("Mark attendance for each student, then tap Take Attendance to save.");
+  };
 
   const handleNotifyParent = async (rollNo: string) => {
     const student = students.find((candidate) => candidate.id === rollNo);
@@ -262,7 +269,11 @@ export function AdminAttendanceView({ title, subtitle, actionLabel, secondaryAct
                 {formatShortDate(calendarDate)}
                 <ChevronDown className="h-4 w-4" />
               </Button>
-              <Button className="h-10 rounded-lg px-4" onClick={exportAttendanceReport}>
+              <Button className="h-10 rounded-lg px-4" onClick={scrollToAttendanceTable}>
+                <ClipboardCheck className="h-4 w-4" />
+                {actionLabel}
+              </Button>
+              <Button variant="outline" className="h-10 rounded-lg px-4" onClick={exportAttendanceReport}>
                 <Download className="h-4 w-4" />
                 {tertiaryActionLabel}
               </Button>
@@ -300,7 +311,8 @@ export function AdminAttendanceView({ title, subtitle, actionLabel, secondaryAct
         </Card>
 
         <div className="grid gap-6 lg:grid-cols-12">
-          <Card className="attendance-panel lg:col-span-8">
+          <div ref={attendanceTableRef} className="lg:col-span-8">
+          <Card className="attendance-panel">
             <CardHeader className="flex flex-col gap-3 px-4 pb-3 pt-4 sm:flex-row sm:items-center sm:justify-between sm:px-5 sm:pt-5">
             <SectionHeader title={`Take attendance — ${selectedBatch?.id ?? "QC-2026"}`} />
               <Button variant="outline" size="sm" className="h-9 shrink-0 rounded-lg" onClick={() => fileInputRef.current?.click()}>
@@ -360,6 +372,7 @@ export function AdminAttendanceView({ title, subtitle, actionLabel, secondaryAct
               </Table>
             </AttendanceTableShell>
           </Card>
+          </div>
 
           <div className="flex flex-col gap-6 lg:col-span-4">
             <Card className="attendance-panel">
@@ -385,6 +398,8 @@ export function AdminAttendanceView({ title, subtitle, actionLabel, secondaryAct
                 <SectionHeader title="Quick actions" />
               </CardHeader>
               <CardContent className="grid grid-cols-2 gap-2 px-4 pb-4 sm:px-5 sm:pb-5">
+                <QuickActionTile label="Take attendance" helper="Open session table" icon={ClipboardCheck} tone="bg-primary/15 text-primary" onClick={scrollToAttendanceTable} />
+                <QuickActionTile label="Save session" helper="Lock today's marks" icon={ShieldCheck} tone="bg-sky-500/15 text-sky-600" onClick={saveAttendance} />
                 <QuickActionTile label="Bulk upload" helper="CSV / Excel" icon={Upload} tone="bg-violet-500/15 text-violet-600" onClick={() => fileInputRef.current?.click()} />
                 <QuickActionTile label="Copy yesterday" helper="Reuse last day" icon={Copy} tone="bg-blue-500/15 text-blue-600" onClick={applyLastSession} />
                 <QuickActionTile label="Mark all present" helper="Entire class" icon={CheckCheck} tone="bg-emerald-500/15 text-emerald-600" onClick={markAllPresent} />

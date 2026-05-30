@@ -52,6 +52,7 @@ Frontend environment variables are documented in `frontend/.env.example`. At min
 - `ZOOM_S2S_ACCOUNT_ID`
 - `ZOOM_S2S_CLIENT_ID`
 - `ZOOM_S2S_CLIENT_SECRET`
+- `ZOOM_ACCESS_TOKEN` if you want to use a pre-scoped Zoom bearer token instead of S2S credentials
 - `ZOOM_HOST_USER_ID`
 - `ZOOM_TIMEZONE`
 

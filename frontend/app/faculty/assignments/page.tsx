@@ -13,7 +13,6 @@ import {
   ShieldAlert,
   Sparkles,
   Trash2,
-  UserRoundCheck,
 } from "lucide-react";
 import { useAppStore, type AssignmentData, type AssignmentSubmission, type StudentData } from "@/lib/store";
 import { Badge } from "@/components/ui/badge";
@@ -27,7 +26,7 @@ import { PageHeader } from "@/components/app/page-header";
 import { assignmentStatusStyles as statusStyles } from "@/lib/status-styles";
 import { cn } from "@/lib/utils";
 import { toast } from "@/lib/toast";
-import { buildAssignmentFollowUpHtml, buildAssignmentFollowUpText, deliverNotification } from "@/lib/notifications";
+import { buildAssignmentFollowUpText, deliverWhatsAppNotification } from "@/lib/notifications";
 import { assignmentStatusIcons as statusIcons, computeAssignmentMetrics, formatAssignmentDeadline } from "@/lib/assignments";
 
 type AssignmentForm = {
@@ -41,6 +40,11 @@ type AttentionItem = {
   assignment: AssignmentData;
   student: StudentData;
   reason: string;
+};
+
+type PendingReviewItem = {
+  assignment: AssignmentData;
+  submission: AssignmentSubmission;
 };
 
 const emptyAssignment: AssignmentForm = {
@@ -83,6 +87,15 @@ export default function FacultyAssignments() {
   const [selectedSubmissionId, setSelectedSubmissionId] = useState<string | null>(null);
   const [aiModalOpen, setAiModalOpen] = useState(false);
   const [evaluatingSubmissionId, setEvaluatingSubmissionId] = useState<string | null>(null);
+  const [evaluationPreview, setEvaluationPreview] = useState<{
+    score: number;
+    grade: string;
+    feedback: string;
+    strengths: string[];
+    improvements: string[];
+    studentName: string;
+    assignmentTitle: string;
+  } | null>(null);
   const [sendingReminderFor, setSendingReminderFor] = useState<string | null>(null);
   const [filterText, setFilterText] = useState("");
 
@@ -103,23 +116,38 @@ export default function FacultyAssignments() {
     );
   }, [assignments, filterText]);
 
-  const pendingReviewAssignments = useMemo(
-    () => assignments.filter((assignment) => assignment.status === "Submitted" && (assignment.submissions?.length ?? 0) > 0),
+  const pendingReviewItems = useMemo<PendingReviewItem[]>(
+    () =>
+      assignments.flatMap((assignment) =>
+        (assignment.submissions ?? [])
+          .filter((submission) => submission.status === "Submitted")
+          .map((submission) => ({ assignment, submission })),
+      ),
     [assignments],
   );
 
-  const aiEvaluatedAssignments = useMemo(
-    () => assignments.filter((assignment) => assignment.status === "Reviewed"),
+  const aiEvaluatedItems = useMemo<PendingReviewItem[]>(
+    () =>
+      assignments.flatMap((assignment) =>
+        (assignment.submissions ?? [])
+          .filter((submission) => submission.status === "Reviewed")
+          .map((submission) => ({ assignment, submission })),
+      ),
     [assignments],
   );
 
   const attentionItems = useMemo<AttentionItem[]>(() => {
+    const now = new Date();
+
     return assignments.flatMap((assignment) => {
       const enrolled = students.filter(
         (student) => student.course === assignment.course && (!assignment.batch || student.batch === assignment.batch),
       );
       const submissions = assignment.submissions ?? [];
       const deadlineDate = getDeadlineDate(assignment.deadline);
+      const deadlinePassed = deadlineDate ? now > deadlineDate : false;
+
+      if (!deadlinePassed) return [];
 
       return enrolled
         .map((student) => {
@@ -128,11 +156,11 @@ export default function FacultyAssignments() {
             return {
               assignment,
               student,
-              reason: "No submission has been recorded yet.",
+              reason: "Assignment deadline passed with no submission on record.",
             };
           }
 
-          if (deadlineDate && isSubmissionLate(submission, assignment.deadline)) {
+          if (isSubmissionLate(submission, assignment.deadline)) {
             return {
               assignment,
               student,
@@ -179,26 +207,9 @@ export default function FacultyAssignments() {
   const sendFollowUp = async (item: AttentionItem) => {
     try {
       setSendingReminderFor(`${item.assignment.id}-${item.student.id}`);
-      await deliverNotification({
-        toPhone: item.student.parentPhone ?? item.student.phone,
-        subject: `Assignment follow-up: ${item.assignment.title}`,
-        html: buildAssignmentFollowUpHtml({
-          assignmentTitle: item.assignment.title,
-          studentName: item.student.name,
-          course: item.assignment.course,
-          batch: item.assignment.batch,
-          dueDate: item.assignment.deadline,
-          reason: item.reason,
-        }),
-        text: buildAssignmentFollowUpText({
-          assignmentTitle: item.assignment.title,
-          studentName: item.student.name,
-          course: item.assignment.course,
-          batch: item.assignment.batch,
-          dueDate: item.assignment.deadline,
-          reason: item.reason,
-        }),
-        whatsappBody: buildAssignmentFollowUpText({
+      await deliverWhatsAppNotification({
+        toPhone: item.student.parentPhone ?? item.student.phone ?? "",
+        body: buildAssignmentFollowUpText({
           assignmentTitle: item.assignment.title,
           studentName: item.student.name,
           course: item.assignment.course,
@@ -251,10 +262,26 @@ export default function FacultyAssignments() {
       }
 
       const marks = `${data.score ?? 0}/100`;
-      reviewAssignmentSubmission(assignment.id, submission.id, marks, data.feedback ?? "AI review completed.");
+      reviewAssignmentSubmission(assignment.id, submission.id, {
+        marks,
+        grade: data.grade,
+        feedback: data.feedback ?? "AI review completed.",
+        strengths: data.strengths,
+        improvements: data.improvements,
+        evaluatedAt: new Date().toISOString(),
+      });
+      setEvaluationPreview({
+        score: data.score ?? 0,
+        grade: data.grade ?? marks,
+        feedback: data.feedback ?? "AI review completed.",
+        strengths: data.strengths ?? [],
+        improvements: data.improvements ?? [],
+        studentName: submission.studentName,
+        assignmentTitle: assignment.title,
+      });
+      setAiModalOpen(false);
       addNotification("AI evaluation complete", `${submission.studentName} received ${data.grade ?? marks} for ${assignment.title}.`);
       toast.success("AI evaluation saved");
-      setAiModalOpen(false);
     } catch (error) {
       const message = error instanceof Error ? error.message : "Unable to evaluate the submission.";
       addNotification("AI evaluation failed", message);
@@ -297,8 +324,8 @@ export default function FacultyAssignments() {
       <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
         {[
           { label: "All", value: metrics.totalAssignments, detail: "Assignments in circulation", icon: FileText, tone: "text-sky-500" },
-          { label: "Pending review", value: pendingReviewAssignments.length, detail: "Ready for AI evaluation", icon: Clock3, tone: "text-amber-500" },
-          { label: "AI evaluated", value: aiEvaluatedAssignments.length, detail: "Reviewed and graded", icon: CheckCircle2, tone: "text-emerald-500" },
+          { label: "Pending review", value: pendingReviewItems.length, detail: "Ready for AI evaluation", icon: Clock3, tone: "text-amber-500" },
+          { label: "AI evaluated", value: aiEvaluatedItems.length, detail: "Reviewed and graded", icon: CheckCircle2, tone: "text-emerald-500" },
           { label: "Need attention", value: attentionItems.length, detail: "Missing or late submissions", icon: ShieldAlert, tone: "text-rose-500" },
         ].map((stat) => {
           const Icon = stat.icon;
@@ -471,61 +498,58 @@ export default function FacultyAssignments() {
               <CardDescription>Submitted work that needs AI evaluation or final feedback.</CardDescription>
             </div>
             <Badge variant="outline" className="rounded-full">
-              {pendingReviewAssignments.length} pending
+              {pendingReviewItems.length} pending
             </Badge>
           </CardHeader>
           <CardContent className="space-y-3">
-            {pendingReviewAssignments.map((assignment) => (
-              <div key={assignment.id} className="rounded-2xl border bg-background/70 p-4">
+            {pendingReviewItems.map(({ assignment, submission }) => (
+              <div key={`${assignment.id}-${submission.id}`} className="rounded-2xl border bg-background/70 p-4">
                 <div className="flex flex-wrap items-center justify-between gap-3">
                   <div>
                     <p className="font-semibold">{assignment.title}</p>
                     <p className="text-sm text-muted-foreground">{assignment.course}</p>
                   </div>
                   <Badge variant="outline" className="rounded-full">
-                    {assignment.submissions?.length ?? 0} submission{(assignment.submissions?.length ?? 0) === 1 ? "" : "s"}
+                    Awaiting review
                   </Badge>
                 </div>
 
-                <div className="mt-4 space-y-3">
-                  {assignment.submissions?.map((submission) => (
-                    <div key={submission.id} className="rounded-2xl border bg-muted/30 p-3">
-                      <div className="flex flex-wrap items-center justify-between gap-3">
-                        <div className="min-w-0">
-                          <p className="font-medium">{submission.studentName}</p>
-                          <p className="text-sm text-muted-foreground">
-                            Submitted {formatSubmissionTime(submission.submittedAt)} · {submission.fileName}
-                          </p>
-                        </div>
-                        <Badge variant="outline" className="rounded-full">
-                          {submission.status}
-                        </Badge>
-                      </div>
-                      <div className="mt-3 flex flex-wrap gap-2">
-                        <Button size="sm" className="rounded-full" onClick={() => openAiModal(assignment, submission)}>
-                          <Sparkles className="mr-2 h-4 w-4" />
-                          AI Evaluate
-                        </Button>
-                        <Button
-                          size="sm"
-                          variant="outline"
-                          className="rounded-full"
-                          onClick={() => {
-                            setSelectedAssignmentId(assignment.id);
-                            setSelectedSubmissionId(submission.id);
-                            setAiModalOpen(true);
-                          }}
-                        >
-                          View details
-                        </Button>
-                      </div>
+                <div className="mt-4 rounded-2xl border bg-muted/30 p-3">
+                  <div className="flex flex-wrap items-center justify-between gap-3">
+                    <div className="min-w-0">
+                      <p className="font-medium">{submission.studentName}</p>
+                      <p className="text-sm text-muted-foreground">
+                        Submitted {formatSubmissionTime(submission.submittedAt)} · {submission.fileName}
+                      </p>
                     </div>
-                  ))}
+                    <Badge variant="outline" className="rounded-full">
+                      {submission.status}
+                    </Badge>
+                  </div>
+                  <div className="mt-3 flex flex-wrap gap-2">
+                    <Button size="sm" className="rounded-full" onClick={() => openAiModal(assignment, submission)}>
+                      <Sparkles className="mr-2 h-4 w-4" />
+                      AI Evaluate
+                    </Button>
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      className="rounded-full"
+                      onClick={() => {
+                        setSelectedAssignmentId(assignment.id);
+                        setSelectedSubmissionId(submission.id);
+                        setEvaluationPreview(null);
+                        setAiModalOpen(true);
+                      }}
+                    >
+                      View details
+                    </Button>
+                  </div>
                 </div>
               </div>
             ))}
 
-            {pendingReviewAssignments.length === 0 ? (
+            {pendingReviewItems.length === 0 ? (
               <div className="rounded-2xl border border-dashed bg-muted/30 p-6 text-center text-sm text-muted-foreground">
                 No submissions are waiting for review.
               </div>
@@ -546,26 +570,54 @@ export default function FacultyAssignments() {
             </Badge>
           </CardHeader>
           <CardContent className="space-y-3">
-            {aiEvaluatedAssignments.map((assignment) => (
-              <div key={assignment.id} className="rounded-2xl border bg-background/70 p-4">
+            {aiEvaluatedItems.map(({ assignment, submission }) => (
+              <div key={`${assignment.id}-${submission.id}`} className="rounded-2xl border bg-background/70 p-4">
                 <div className="flex flex-wrap items-start justify-between gap-3">
                   <div>
                     <p className="font-semibold">{assignment.title}</p>
                     <p className="text-sm text-muted-foreground">{assignment.course}</p>
+                    <p className="mt-1 text-sm font-medium text-foreground">{submission.studentName}</p>
                   </div>
-                  <Badge className="rounded-full bg-emerald-500/10 text-emerald-700 hover:bg-emerald-500/10">
-                    {assignment.grade ?? "Reviewed"}
-                  </Badge>
+                  <div className="flex items-center gap-2">
+                    {submission.grade ? (
+                      <Badge className="rounded-full bg-emerald-500/10 text-emerald-700 hover:bg-emerald-500/10">{submission.grade}</Badge>
+                    ) : null}
+                    {submission.marks ? (
+                      <Badge variant="outline" className="rounded-full">{submission.marks}</Badge>
+                    ) : null}
+                  </div>
                 </div>
-                <p className="mt-3 text-sm text-muted-foreground">{assignment.feedback ?? "AI review is ready for the student."}</p>
-                <div className="mt-3 flex items-center gap-2 text-xs text-muted-foreground">
-                  <CheckCircle2 className="h-4 w-4 text-emerald-600" />
-                  AI evaluation stored in the assignment ledger
-                </div>
+                <p className="mt-3 text-sm text-muted-foreground">{submission.feedback ?? assignment.feedback}</p>
+                {submission.strengths?.length ? (
+                  <div className="mt-3">
+                    <p className="text-xs font-medium uppercase tracking-[0.14em] text-emerald-700">Strengths</p>
+                    <ul className="mt-1 space-y-1 text-sm text-muted-foreground">
+                      {submission.strengths.map((item) => (
+                        <li key={item} className="flex items-start gap-2">
+                          <CheckCircle2 className="mt-0.5 h-3.5 w-3.5 shrink-0 text-emerald-600" />
+                          {item}
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                ) : null}
+                {submission.improvements?.length ? (
+                  <div className="mt-3">
+                    <p className="text-xs font-medium uppercase tracking-[0.14em] text-amber-700">Improvements</p>
+                    <ul className="mt-1 space-y-1 text-sm text-muted-foreground">
+                      {submission.improvements.map((item) => (
+                        <li key={item} className="flex items-start gap-2">
+                          <Sparkles className="mt-0.5 h-3.5 w-3.5 shrink-0 text-amber-600" />
+                          {item}
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                ) : null}
               </div>
             ))}
 
-            {aiEvaluatedAssignments.length === 0 ? (
+            {aiEvaluatedItems.length === 0 ? (
               <div className="rounded-2xl border border-dashed bg-muted/30 p-6 text-center text-sm text-muted-foreground">
                 No AI-evaluated assignments yet.
               </div>
@@ -606,7 +658,7 @@ export default function FacultyAssignments() {
                     size="sm"
                     variant="outline"
                     className="rounded-full"
-                    onClick={() => sendFollowUp(item)}
+                    onClick={() => void sendFollowUp(item)}
                     disabled={sendingReminderFor === `${item.assignment.id}-${item.student.id}`}
                   >
                     {sendingReminderFor === `${item.assignment.id}-${item.student.id}` ? (
@@ -614,7 +666,7 @@ export default function FacultyAssignments() {
                     ) : (
                       <Megaphone className="mr-2 h-4 w-4" />
                     )}
-                    Notify
+                    Send notification
                   </Button>
                 </div>
               </div>
@@ -628,35 +680,6 @@ export default function FacultyAssignments() {
           </CardContent>
         </Card>
       </div>
-
-      <Card className="glass-card rounded-[1.8rem]">
-        <CardHeader className="flex flex-row items-start justify-between gap-4">
-          <div>
-            <CardTitle className="text-xl">Assignment overview</CardTitle>
-            <CardDescription>High-level activity across the faculty queue.</CardDescription>
-          </div>
-          <Badge variant="outline" className="rounded-full">
-            {metrics.totalSubmissions} submissions
-          </Badge>
-        </CardHeader>
-        <CardContent className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
-          {[
-            { label: "Reviewed", value: metrics.reviewedCount, icon: CheckCircle2, tone: "text-emerald-600" },
-            { label: "Submitted", value: metrics.submittedCount, icon: Clock3, tone: "text-amber-600" },
-            { label: "Need attention", value: metrics.attentionCount, icon: ShieldAlert, tone: "text-rose-600" },
-            { label: "Top course", value: metrics.topCourse, icon: UserRoundCheck, tone: "text-sky-600" },
-          ].map((item) => {
-            const Icon = item.icon;
-            return (
-              <div key={item.label} className="rounded-2xl border bg-background/70 p-4">
-                <Icon className={cn("h-4 w-4", item.tone)} />
-                <p className="mt-2 text-sm text-muted-foreground">{item.label}</p>
-                <p className="mt-1 text-lg font-semibold">{item.value}</p>
-              </div>
-            );
-          })}
-        </CardContent>
-      </Card>
 
       <Dialog open={aiModalOpen} onOpenChange={setAiModalOpen}>
         <DialogContent className="sm:max-w-2xl">
@@ -719,11 +742,11 @@ export default function FacultyAssignments() {
           ) : null}
 
           <DialogFooter>
-            <Button variant="outline" onClick={() => setAiModalOpen(false)}>
+            <Button variant="outline" onClick={() => { setAiModalOpen(false); setEvaluationPreview(null); }}>
               Close
             </Button>
-            {selectedAssignment && selectedSubmission ? (
-              <Button onClick={() => runAiEvaluation(selectedAssignment, selectedSubmission)} disabled={evaluatingSubmissionId === selectedSubmission.id}>
+            {selectedAssignment && selectedSubmission && !evaluationPreview ? (
+              <Button onClick={() => void runAiEvaluation(selectedAssignment, selectedSubmission)} disabled={evaluatingSubmissionId === selectedSubmission.id}>
                 {evaluatingSubmissionId === selectedSubmission.id ? (
                   <>
                     <Loader2 className="mr-2 h-4 w-4 animate-spin" />
@@ -737,6 +760,57 @@ export default function FacultyAssignments() {
                 )}
               </Button>
             ) : null}
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={Boolean(evaluationPreview)} onOpenChange={(open) => { if (!open) { setEvaluationPreview(null); setAiModalOpen(false); } }}>
+        <DialogContent className="sm:max-w-2xl">
+          <DialogHeader>
+            <DialogTitle>AI evaluation result</DialogTitle>
+            <DialogDescription>
+              Review the marks and feedback before closing. Results are saved to the AI Evaluates section.
+            </DialogDescription>
+          </DialogHeader>
+
+          {evaluationPreview ? (
+            <div className="space-y-4">
+              <div className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border bg-emerald-500/5 p-4">
+                <div>
+                  <p className="font-semibold">{evaluationPreview.studentName}</p>
+                  <p className="text-sm text-muted-foreground">{evaluationPreview.assignmentTitle}</p>
+                </div>
+                <div className="flex items-center gap-2">
+                  <Badge className="rounded-full bg-emerald-500/10 text-emerald-700 text-lg px-4 py-1">{evaluationPreview.grade}</Badge>
+                  <Badge variant="outline" className="rounded-full">{evaluationPreview.score}/100</Badge>
+                </div>
+              </div>
+              <p className="text-sm leading-6 text-muted-foreground">{evaluationPreview.feedback}</p>
+              {evaluationPreview.strengths.length ? (
+                <div className="rounded-2xl border p-4">
+                  <p className="text-xs font-medium uppercase tracking-[0.14em] text-emerald-700">Strengths</p>
+                  <ul className="mt-2 space-y-1 text-sm">
+                    {evaluationPreview.strengths.map((item) => (
+                      <li key={item} className="flex items-start gap-2"><CheckCircle2 className="mt-0.5 h-4 w-4 text-emerald-600" />{item}</li>
+                    ))}
+                  </ul>
+                </div>
+              ) : null}
+              {evaluationPreview.improvements.length ? (
+                <div className="rounded-2xl border p-4">
+                  <p className="text-xs font-medium uppercase tracking-[0.14em] text-amber-700">Areas to improve</p>
+                  <ul className="mt-2 space-y-1 text-sm">
+                    {evaluationPreview.improvements.map((item) => (
+                      <li key={item} className="flex items-start gap-2"><Sparkles className="mt-0.5 h-4 w-4 text-amber-600" />{item}</li>
+                    ))}
+                  </ul>
+                </div>
+              ) : null}
+            </div>
+          ) : null}
+
+          <DialogFooter>
+            <Button onClick={() => { setEvaluationPreview(null); setAiModalOpen(false); }}>Done</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>

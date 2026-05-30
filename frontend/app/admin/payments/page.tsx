@@ -2,7 +2,6 @@
 
 import { useMemo, useState } from "react";
 import {
-  ArrowUpRight,
   Banknote,
   BellRing,
   CreditCard,
@@ -31,7 +30,7 @@ import { Input } from "@/components/ui/input";
 import { PageHeader } from "@/components/app/page-header";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { buildFeeReminderHtml, buildFeeReminderText, deliverNotification } from "@/lib/notifications";
+import { buildFeeReminderText, deliverWhatsAppNotification } from "@/lib/notifications";
 import { toast } from "@/lib/toast";
 
 const PIE_COLORS = {
@@ -53,9 +52,9 @@ const paymentMethodLabel = (status: InvoiceData["status"]) => {
   return "Online Checkout";
 };
 
-type ReceiptPreview = {
-  receiptId: string;
+type InvoicePreview = {
   invoiceId: string;
+  receiptId: string;
   childName: string;
   amount: number;
   dueDate: string;
@@ -75,7 +74,7 @@ export default function AdminPayments() {
   const [sendingReminderFor, setSendingReminderFor] = useState<string | null>(null);
   const [viewingReceiptFor, setViewingReceiptFor] = useState<string | null>(null);
   const [receiptDialogOpen, setReceiptDialogOpen] = useState(false);
-  const [receiptPreview, setReceiptPreview] = useState<ReceiptPreview | null>(null);
+  const [receiptPreview, setReceiptPreview] = useState<InvoicePreview | null>(null);
   const [newInvoice, setNewInvoice] = useState({
     childName: "",
     amount: "",
@@ -164,13 +163,11 @@ export default function AdminPayments() {
 
   const sendFeeReminder = async (invoice: InvoiceData) => {
     const target = getFeeReminderTarget(invoice);
+    const body = buildFeeReminderText(target);
 
-    await deliverNotification({
+    await deliverWhatsAppNotification({
       toPhone: target.phone,
-      subject: `Fee reminder for ${target.childName} - ${target.invoiceId}`,
-      html: buildFeeReminderHtml(target),
-      text: buildFeeReminderText(target),
-      whatsappBody: buildFeeReminderText(target),
+      body,
     });
   };
 
@@ -178,24 +175,39 @@ export default function AdminPayments() {
     try {
       setSendingReminderFor(invoice.id);
       await sendFeeReminder(invoice);
-      addNotification("Fee reminder sent", `Reminder sent for ${invoice.childName} on ${invoice.id}.`);
+      addNotification("WhatsApp reminder sent", `Fee reminder for ${invoice.childName} (${invoice.id}) was queued on WhatsApp.`);
+      toast.success(`WhatsApp reminder sent to ${invoice.childName}`);
     } catch (error) {
-      addNotification("Fee reminder failed", error instanceof Error ? error.message : "Unable to send reminder.");
+      const message = error instanceof Error ? error.message : "Unable to send WhatsApp reminder.";
+      addNotification("WhatsApp reminder failed", message);
+      toast.error(message);
     } finally {
       setSendingReminderFor(null);
     }
   };
 
   const handleSendAllReminders = async () => {
+    if (pendingInvoices.length === 0) {
+      toast.info("No pending or overdue invoices to remind.");
+      return;
+    }
+
     try {
       setSendingReminderFor("bulk");
       await Promise.all(pendingInvoices.map((invoice) => sendFeeReminder(invoice)));
-      addNotification("Fee reminders dispatched", "Pending and overdue invoices were sent through WhatsApp.");
+      addNotification("WhatsApp reminders dispatched", `${pendingInvoices.length} fee reminders were sent via WhatsApp.`);
+      toast.success(`${pendingInvoices.length} WhatsApp reminders sent`);
     } catch (error) {
-      addNotification("Fee reminder failed", error instanceof Error ? error.message : "Unable to send reminders.");
+      const message = error instanceof Error ? error.message : "Unable to send WhatsApp reminders.";
+      addNotification("WhatsApp reminder failed", message);
+      toast.error(message);
     } finally {
       setSendingReminderFor(null);
     }
+  };
+
+  const exportPaymentReport = () => {
+    downloadReceiptBundle();
   };
 
   const downloadReceiptFile = (payload: { fileName: string; html: string; text: string; contentType?: string }) => {
@@ -234,7 +246,7 @@ export default function AdminPayments() {
   const handleViewReceipt = async (invoice: InvoiceData) => {
     try {
       setViewingReceiptFor(invoice.id);
-      const response = await fetch("/api/razorpay/receipt", {
+      const response = await fetch("/api/invoices/generate", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -245,23 +257,26 @@ export default function AdminPayments() {
           amount: invoice.amount,
           dueDate: invoice.dueDate,
           status: invoice.status,
-          paymentMethod: "Razorpay UPI",
-          paidAt: new Date().toISOString(),
+          paymentMethod: invoice.status === "Paid" ? "Razorpay UPI" : "Online Checkout",
+          paidAt: invoice.status === "Paid" ? new Date().toISOString() : undefined,
+          description: "Tuition & course fee",
+          courseName: "Academic Program",
         }),
       });
 
-      const data = (await response.json()) as { receipt?: ReceiptPreview; error?: string };
-      if (!response.ok || !data.receipt) {
-        throw new Error(data.error || "Unable to load receipt.");
+      const data = (await response.json()) as { invoice?: InvoicePreview; error?: string };
+      if (!response.ok || !data.invoice) {
+        throw new Error(data.error || "Unable to generate invoice.");
       }
 
-      setReceiptPreview(data.receipt);
+      setReceiptPreview(data.invoice);
       setReceiptDialogOpen(true);
-      downloadReceiptFile(data.receipt);
-      addNotification("Receipt downloaded", `${invoice.id} receipt is ready for viewing and download.`);
+      addNotification("Invoice ready", `${invoice.id} is ready to preview and download.`);
+      toast.success(invoice.status === "Paid" ? "Receipt generated" : "Invoice generated");
     } catch (error) {
-      addNotification("Receipt failed", error instanceof Error ? error.message : "Unable to load receipt.");
-      toast.error(error instanceof Error ? error.message : "Unable to load receipt.");
+      const message = error instanceof Error ? error.message : "Unable to generate invoice.";
+      addNotification("Invoice failed", message);
+      toast.error(message);
     } finally {
       setViewingReceiptFor(null);
     }
@@ -287,7 +302,7 @@ export default function AdminPayments() {
         description="Monitor collections, generate invoices, and keep fee reminders moving without leaving the dashboard."
         actions={
           <div className="flex flex-wrap gap-2">
-            <Button variant="outline" className="rounded-full" onClick={() => addNotification("Payment report exported", "The latest summary is ready for download.")}>
+            <Button variant="outline" className="rounded-full" onClick={exportPaymentReport}>
               <Download className="mr-2 h-4 w-4" />
               Export report
             </Button>
@@ -373,9 +388,16 @@ export default function AdminPayments() {
                     className="h-11 rounded-full pl-9"
                   />
                 </div>
-                <Button variant="outline" className="rounded-full">
+                <Button
+                  variant="outline"
+                  className="rounded-full"
+                  onClick={() => {
+                    setStatusFilter("Pending");
+                    toast.info("Showing pending invoices");
+                  }}
+                >
                   <Filter className="mr-2 h-4 w-4" />
-                  Filters
+                  Pending only
                 </Button>
               </div>
             </div>
@@ -444,11 +466,11 @@ export default function AdminPayments() {
                                 variant="outline"
                                 size="sm"
                                 className="rounded-full"
-                                onClick={() => handleSendReminder(invoice)}
+                                onClick={() => void handleSendReminder(invoice)}
                                 disabled={sendingReminderFor === invoice.id}
                               >
-                                <Send className="mr-2 h-3.5 w-3.5" />
-                                {sendingReminderFor === invoice.id ? "Sending..." : "Remind"}
+                                <Smartphone className="mr-2 h-3.5 w-3.5" />
+                                {sendingReminderFor === invoice.id ? "Sending..." : "WhatsApp"}
                               </Button>
                               <Button size="sm" className="rounded-full" onClick={() => handleMarkPaid(invoice)}>
                                 <ShieldCheck className="mr-2 h-3.5 w-3.5" />
@@ -456,18 +478,16 @@ export default function AdminPayments() {
                               </Button>
                             </>
                           )}
-                          {invoice.status === "Paid" && (
-                            <Button
+                          <Button
                               variant="outline"
                               size="sm"
                               className="rounded-full"
-                              onClick={() => handleViewReceipt(invoice)}
+                              onClick={() => void handleViewReceipt(invoice)}
                               disabled={viewingReceiptFor === invoice.id}
                             >
-                              <ArrowUpRight className="mr-2 h-3.5 w-3.5" />
-                              {viewingReceiptFor === invoice.id ? "Loading..." : "View receipt"}
+                              <Download className="mr-2 h-3.5 w-3.5" />
+                              {viewingReceiptFor === invoice.id ? "Generating..." : invoice.status === "Paid" ? "View receipt" : "Download invoice"}
                             </Button>
-                          )}
                         </div>
                       </TableCell>
                     </TableRow>
@@ -543,25 +563,28 @@ export default function AdminPayments() {
               <CardTitle className="text-xl">Quick actions</CardTitle>
               <CardDescription>Common finance tasks inspired by the sample layout.</CardDescription>
             </CardHeader>
-            <CardContent className="flex gap-3 overflow-x-auto pb-2">
+            <CardContent className="grid grid-cols-1 gap-3 sm:grid-cols-3">
               {[
                 {
                   title: "Generate invoice",
                   description: "Create a new student billing entry.",
                   onClick: openInvoiceDialog,
                   icon: Plus,
+                  disabled: false,
                 },
                 {
                   title: "WhatsApp reminders",
                   description: "Ping pending and overdue invoices.",
-                  onClick: handleSendAllReminders,
+                  onClick: () => void handleSendAllReminders(),
                   icon: BellRing,
+                  disabled: sendingReminderFor === "bulk",
                 },
                 {
                   title: "Download receipt bundle",
                   description: "Collect payment history for auditing.",
                   onClick: downloadReceiptBundle,
                   icon: Download,
+                  disabled: false,
                 },
               ].map((action) => {
                 const Icon = action.icon;
@@ -569,8 +592,10 @@ export default function AdminPayments() {
                 return (
                 <button
                   key={action.title}
+                  type="button"
+                  disabled={action.disabled}
                   onClick={action.onClick}
-                  className="flex min-w-[240px] flex-1 items-center gap-4 rounded-[1.2rem] border bg-background/70 p-4 text-left transition-all hover:-translate-y-0.5 hover:border-primary/40 hover:shadow-md"
+                  className="flex min-w-0 flex-1 items-center gap-4 rounded-[1.2rem] border bg-background/70 p-4 text-left transition-all hover:-translate-y-0.5 hover:border-primary/40 hover:shadow-md disabled:cursor-not-allowed disabled:opacity-60"
                 >
                   <span className="flex h-11 w-11 items-center justify-center rounded-2xl bg-primary/10 text-primary">
                     <Icon className="h-5 w-5" />
@@ -588,51 +613,53 @@ export default function AdminPayments() {
       </div>
 
       <Dialog open={receiptDialogOpen} onOpenChange={setReceiptDialogOpen}>
-        <DialogContent className="sm:max-w-2xl">
+        <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-3xl">
           <DialogHeader>
-            <DialogTitle>Receipt preview</DialogTitle>
+            <DialogTitle>Invoice preview</DialogTitle>
             <DialogDescription>
-              View the receipt that was generated from the backend and download it for records.
+              A downloadable tax invoice has been generated. Preview it below or download again.
             </DialogDescription>
           </DialogHeader>
 
           {receiptPreview ? (
-            <div className="grid gap-4 py-2 md:grid-cols-[1fr_0.85fr]">
-              <div className="rounded-2xl border bg-background/70 p-4">
-                <p className="text-xs uppercase tracking-[0.18em] text-muted-foreground">Receipt details</p>
-                <div className="mt-4 space-y-3 text-sm">
-                  <div className="flex items-center justify-between gap-3">
-                    <span className="text-muted-foreground">Receipt ID</span>
-                    <span className="font-medium">{receiptPreview.receiptId}</span>
-                  </div>
-                  <div className="flex items-center justify-between gap-3">
-                    <span className="text-muted-foreground">Student</span>
-                    <span className="font-medium">{receiptPreview.childName}</span>
-                  </div>
-                  <div className="flex items-center justify-between gap-3">
+            <div className="grid gap-4 py-2">
+              <div className="overflow-hidden rounded-2xl border bg-background">
+                <iframe
+                  title="Invoice preview"
+                  srcDoc={receiptPreview.html}
+                  className="h-[420px] w-full border-0"
+                  sandbox=""
+                />
+              </div>
+              <div className="grid gap-3 rounded-2xl border bg-muted/20 p-4 md:grid-cols-2">
+                <div className="space-y-2 text-sm">
+                  <div className="flex justify-between gap-3">
                     <span className="text-muted-foreground">Invoice</span>
                     <span className="font-medium">{receiptPreview.invoiceId}</span>
                   </div>
-                  <div className="flex items-center justify-between gap-3">
+                  <div className="flex justify-between gap-3">
+                    <span className="text-muted-foreground">Receipt</span>
+                    <span className="font-medium">{receiptPreview.receiptId}</span>
+                  </div>
+                  <div className="flex justify-between gap-3">
+                    <span className="text-muted-foreground">Student</span>
+                    <span className="font-medium">{receiptPreview.childName}</span>
+                  </div>
+                </div>
+                <div className="space-y-2 text-sm">
+                  <div className="flex justify-between gap-3">
                     <span className="text-muted-foreground">Amount</span>
                     <span className="font-medium">{formatCurrency(receiptPreview.amount)}</span>
                   </div>
-                  <div className="flex items-center justify-between gap-3">
+                  <div className="flex justify-between gap-3">
                     <span className="text-muted-foreground">Status</span>
                     <span className="font-medium">{receiptPreview.status}</span>
                   </div>
-                  <div className="flex items-center justify-between gap-3">
-                    <span className="text-muted-foreground">Method</span>
-                    <span className="font-medium">{receiptPreview.paymentMethod}</span>
+                  <div className="flex justify-between gap-3">
+                    <span className="text-muted-foreground">File</span>
+                    <span className="font-medium">{receiptPreview.fileName}</span>
                   </div>
                 </div>
-              </div>
-
-              <div className="rounded-2xl border bg-muted/20 p-4">
-                <p className="text-xs uppercase tracking-[0.18em] text-muted-foreground">Receipt text</p>
-                <pre className="mt-4 max-h-[20rem] overflow-auto whitespace-pre-wrap rounded-xl bg-background p-4 text-xs leading-6 text-muted-foreground">
-                  {receiptPreview.text}
-                </pre>
               </div>
             </div>
           ) : null}
@@ -644,7 +671,7 @@ export default function AdminPayments() {
             {receiptPreview ? (
               <Button onClick={() => downloadReceiptFile(receiptPreview)}>
                 <Download className="mr-2 h-4 w-4" />
-                Download again
+                Download invoice
               </Button>
             ) : null}
           </DialogFooter>

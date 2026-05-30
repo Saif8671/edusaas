@@ -174,22 +174,22 @@ export default function AdminCourses() {
               </div>
             </CardContent>
 
-            <CardFooter className="mt-auto flex gap-2 border-t bg-muted/20 pt-2">
+            <CardFooter className="mt-auto flex flex-wrap gap-2 border-t bg-muted/20 pt-2">
               <Button
                 variant="outline"
                 size="sm"
-                className="w-full rounded-xl text-xs"
+                className="min-w-0 flex-1 rounded-xl text-xs"
                 onClick={() => updateCourse(course.id, { published: !course.published })}
               >
                 {course.published ? "Unpublish" : "Publish"}
               </Button>
-              <Button variant="ghost" size="icon" onClick={() => startEdit(course)}>
+              <Button variant="ghost" size="icon" className="shrink-0" onClick={() => startEdit(course)}>
                 <PencilLine className="h-4 w-4" />
               </Button>
               <Button
                 variant="ghost"
                 size="icon"
-                className="text-red-500 hover:text-red-600 focus:bg-red-500/10"
+                className="shrink-0 text-red-500 hover:text-red-600 focus:bg-red-500/10"
                 onClick={() => deleteCourse(course.id)}
               >
                 <Trash2 className="h-4 w-4" />

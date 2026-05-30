@@ -17,6 +17,13 @@ type ZoomTokenResponse = {
   access_token: string;
   token_type: string;
   expires_in: number;
+  scope?: string;
+  api_url?: string;
+};
+
+type ZoomErrorPayload = {
+  code?: number;
+  message?: string;
 };
 
 type ZoomMeetingResponse = {
@@ -58,6 +65,15 @@ function buildStartTime(date?: string, time?: string) {
 }
 
 async function getZoomAccessToken() {
+  const directToken = process.env.ZOOM_ACCESS_TOKEN?.trim();
+  if (directToken) {
+    return {
+      access_token: directToken,
+      token_type: "bearer",
+      expires_in: 3600,
+    } satisfies ZoomTokenResponse;
+  }
+
   const accountId = process.env.ZOOM_S2S_ACCOUNT_ID;
   const clientId = process.env.ZOOM_S2S_CLIENT_ID;
   const clientSecret = process.env.ZOOM_S2S_CLIENT_SECRET;
@@ -83,6 +99,16 @@ async function getZoomAccessToken() {
   }
 
   return (await response.json()) as ZoomTokenResponse;
+}
+
+async function parseZoomError(response: Response) {
+  const raw = await response.text();
+
+  try {
+    return { raw, parsed: JSON.parse(raw) as ZoomErrorPayload };
+  } catch {
+    return { raw, parsed: null };
+  }
 }
 
 export async function POST(request: Request) {
@@ -112,10 +138,12 @@ export async function POST(request: Request) {
     const topic = `${title} - ${batch}`;
     const agenda = notes || `Live class for ${batch}`;
 
-    const authConfigured =
-      process.env.ZOOM_S2S_ACCOUNT_ID &&
-      process.env.ZOOM_S2S_CLIENT_ID &&
-      process.env.ZOOM_S2S_CLIENT_SECRET;
+    const authConfigured = Boolean(
+      process.env.ZOOM_ACCESS_TOKEN?.trim() ||
+        (process.env.ZOOM_S2S_ACCOUNT_ID &&
+          process.env.ZOOM_S2S_CLIENT_ID &&
+          process.env.ZOOM_S2S_CLIENT_SECRET),
+    );
 
     if (!authConfigured) {
       const demoId = 700_000_000 + Math.floor(Math.random() * 100_000_000);
@@ -168,9 +196,20 @@ export async function POST(request: Request) {
     );
 
     if (!meetingResponse.ok) {
-      const errorText = await meetingResponse.text();
+      const errorPayload = await parseZoomError(meetingResponse);
+      const missingMeetingScopes = errorPayload.parsed?.code === 4711
+        || errorPayload.raw.includes("meeting:write:meeting")
+        || errorPayload.raw.includes("meeting:write:meeting:admin");
+
       return NextResponse.json(
-        { error: "Unable to create Zoom meeting.", details: errorText },
+        {
+          error: missingMeetingScopes
+            ? "Unable to create Zoom meeting because the Zoom token does not include meeting write scopes."
+            : "Unable to create Zoom meeting.",
+          details: missingMeetingScopes
+            ? "Add meeting:write:meeting or meeting:write:meeting:admin to the Zoom app scopes, or provide a pre-scoped ZOOM_ACCESS_TOKEN."
+            : errorPayload.raw,
+        },
         { status: meetingResponse.status },
       );
     }

@@ -51,11 +51,11 @@ export function SummaryCard({ label, value, detail, icon: Icon, tone, progress, 
 
 export function ModeTabs({ mode }: { mode: AttendanceMode }) {
   return (
-    <div className="inline-flex rounded-xl border border-border bg-muted/40 p-1">
+    <div className="flex w-full flex-wrap gap-1 rounded-xl border border-border bg-muted/40 p-1 sm:w-auto">
       <button
         type="button"
         className={cn(
-          "inline-flex h-9 items-center gap-2 rounded-lg px-3 text-sm font-medium transition",
+          "inline-flex min-w-0 flex-1 items-center justify-center gap-2 rounded-lg px-3 py-2 text-sm font-medium transition sm:flex-none sm:py-0",
           mode === "admin" ? "bg-primary text-primary-foreground shadow-sm" : "text-muted-foreground hover:bg-muted",
         )}
       >
@@ -65,7 +65,7 @@ export function ModeTabs({ mode }: { mode: AttendanceMode }) {
       <button
         type="button"
         className={cn(
-          "inline-flex h-9 items-center gap-2 rounded-lg px-3 text-sm font-medium transition",
+          "inline-flex min-w-0 flex-1 items-center justify-center gap-2 rounded-lg px-3 py-2 text-sm font-medium transition sm:flex-none sm:py-0",
           mode === "faculty" ? "bg-primary text-primary-foreground shadow-sm" : "text-muted-foreground hover:bg-muted",
         )}
       >
@@ -121,7 +121,7 @@ export function AttendanceChoice({
     <button
       type="button"
       className={cn(
-        "inline-flex h-7 w-7 items-center justify-center rounded-full border transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/60",
+        "inline-flex h-8 w-8 min-h-8 min-w-8 flex-none items-center justify-center rounded-full border transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/60",
         active ? meta.dotClass : "border-border bg-background text-muted-foreground hover:border-primary/40 hover:bg-primary/5",
       )}
       aria-pressed={active}
@@ -207,10 +207,10 @@ export function SectionHeader({
   onAction?: () => void;
 }) {
   return (
-    <div className="flex items-center justify-between gap-3">
-      <CardTitle className="text-base font-semibold sm:text-lg">{title}</CardTitle>
+    <div className="flex min-w-0 flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+      <CardTitle className="min-w-0 text-base font-semibold sm:text-lg">{title}</CardTitle>
       {actionLabel ? (
-        <Button variant="ghost" size="sm" className="h-8 shrink-0 px-2 text-primary" onClick={onAction}>
+        <Button variant="ghost" size="sm" className="h-8 shrink-0 self-start px-2 text-primary sm:self-auto" onClick={onAction}>
           {actionLabel}
           <ArrowRight className="h-4 w-4" />
         </Button>
@@ -223,7 +223,7 @@ export function AttendanceTableShell({ children, footer }: { children: ReactNode
   return (
     <>
       <div className="border-t border-border">
-        <div className="max-h-[min(420px,50vh)] overflow-auto scrollbar-thin">{children}</div>
+        <div className="min-w-0 max-h-[min(420px,50vh)] overflow-auto scrollbar-thin">{children}</div>
       </div>
       {footer ? <div className="border-t border-border p-4 sm:px-5">{footer}</div> : null}
     </>
@@ -281,7 +281,7 @@ export function QuickActionTile({
     <button
       type="button"
       onClick={onClick}
-      className="rounded-xl border border-border/60 bg-muted/30 p-3 text-left transition hover:border-primary/30 hover:bg-card disabled:cursor-not-allowed disabled:opacity-60"
+      className="flex min-h-28 min-w-0 flex-col rounded-xl border border-border/60 bg-muted/30 p-3 text-left transition hover:border-primary/30 hover:bg-card disabled:cursor-not-allowed disabled:opacity-60"
     >
       <div className={cn("flex h-9 w-9 items-center justify-center rounded-lg", tone)}>
         <Icon className="h-4 w-4" />

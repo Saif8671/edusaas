@@ -23,20 +23,31 @@ function getSubmissionByStudent(assignment: AssignmentData, studentId: string) {
   return assignment.submissions?.find((submission) => submission.studentId === studentId) ?? null;
 }
 
+function matchesStudentEnrollment(assignment: AssignmentData, profile: { course: string; batch: string }) {
+  if (assignment.course !== profile.course) return false;
+  if (assignment.batch && assignment.batch !== profile.batch) return false;
+  return true;
+}
+
 export default function StudentAssignments() {
-  const { currentUser, students, assignments, submitAssignment } = useAppStore();
+  const { currentUser, students, assignments, submitAssignment, addNotification } = useAppStore();
   const profile = useMemo(() => students.find((student) => student.id === currentUser?.id) ?? students[0], [currentUser?.id, students]);
   const [drafts, setDrafts] = useState<Record<string, SubmissionDraft>>({});
 
-  const previousSubmissions = useMemo(() => {
-    if (!profile) return [];
-    return assignments.filter((assignment) => getSubmissionByStudent(assignment, profile.id));
+  const myAssignments = useMemo(() => {
+    if (!profile) return assignments;
+    return assignments.filter((assignment) => matchesStudentEnrollment(assignment, profile));
   }, [assignments, profile]);
 
+  const previousSubmissions = useMemo(() => {
+    if (!profile) return [];
+    return myAssignments.filter((assignment) => getSubmissionByStudent(assignment, profile.id));
+  }, [myAssignments, profile]);
+
   const currentAssignments = useMemo(() => {
-    if (!profile) return assignments;
-    return assignments.filter((assignment) => !getSubmissionByStudent(assignment, profile.id) && assignment.status !== "Reviewed");
-  }, [assignments, profile]);
+    if (!profile) return [];
+    return myAssignments.filter((assignment) => !getSubmissionByStudent(assignment, profile.id));
+  }, [myAssignments, profile]);
 
   const updateDraft = (assignmentId: string, next: Partial<SubmissionDraft>) => {
     setDrafts((current) => ({
@@ -69,19 +80,21 @@ export default function StudentAssignments() {
       notes: draft.notes.trim() || `Submitted from the student assignment portal for ${assignment.title}.`,
     });
 
+    addNotification("Assignment submitted", `${assignment.title} was sent to faculty for review.`);
+
     setDrafts((current) => ({
       ...current,
       [assignment.id]: { notes: "", file: null },
     }));
 
-    toast.success("Assignment submitted");
+    toast.success("Assignment submitted to faculty");
   };
 
   return (
     <div className="page-shell space-y-6">
       <PageHeader hideTitle title="Assignments" description="Upload your work, submit current assignments, and review what you already turned in." />
 
-      {assignments.length === 0 ? (
+      {myAssignments.length === 0 ? (
         <EmptyState
           icon={BookOpenCheck}
           title="No assignments yet"
@@ -122,8 +135,9 @@ export default function StudentAssignments() {
                       </p>
                       <p>Submitted: {submission.submittedAt}</p>
                       <p>Deadline: {formatAssignmentDeadline(assignment.deadline)}</p>
-                      {assignment.grade ? <p className="font-medium text-foreground">Marks: {assignment.grade}</p> : null}
-                      {assignment.feedback ? <p>{assignment.feedback}</p> : null}
+                      {submission.marks ? <p className="font-medium text-foreground">Marks: {submission.marks}</p> : null}
+                      {submission.grade ? <p className="font-medium text-foreground">Grade: {submission.grade}</p> : null}
+                      {submission.feedback ? <p>{submission.feedback}</p> : assignment.feedback ? <p>{assignment.feedback}</p> : null}
                     </div>
                     {submission.notes ? <p className="mt-3 rounded-2xl border bg-muted/30 p-3 text-sm text-muted-foreground">{submission.notes}</p> : null}
                   </div>
@@ -153,6 +167,7 @@ export default function StudentAssignments() {
                 const draft = drafts[assignment.id] ?? { notes: "", file: null };
                 const existingSubmission = profile ? getSubmissionByStudent(assignment, profile.id) : null;
                 const Icon = assignment.status === "Late" ? Sparkles : FileCheck;
+                const isResubmit = Boolean(existingSubmission);
 
                 return (
                   <div key={assignment.id} className="rounded-2xl border bg-background/70 p-4">
@@ -176,7 +191,9 @@ export default function StudentAssignments() {
                       <div className="space-y-2">
                         <label className="text-sm font-medium">Upload assignment</label>
                         <Input
+                          id={`file-${assignment.id}`}
                           type="file"
+                          accept=".pdf,.doc,.docx,.zip,.txt,.png,.jpg,.jpeg"
                           className="rounded-2xl"
                           onChange={(event) => handleFileChange(assignment.id, event)}
                         />
@@ -197,10 +214,16 @@ export default function StudentAssignments() {
                         />
                       </div>
 
-                      <Button className="w-full rounded-2xl" onClick={() => handleSubmit(assignment)}>
-                        <Send className="mr-2 h-4 w-4" />
-                        Submit
-                      </Button>
+                      <div className="flex flex-col gap-2 sm:flex-row">
+                        <Button variant="outline" className="flex-1 rounded-2xl" onClick={() => document.getElementById(`file-${assignment.id}`)?.click()} type="button">
+                          <Paperclip className="mr-2 h-4 w-4" />
+                          Upload file
+                        </Button>
+                        <Button className="flex-1 rounded-2xl" onClick={() => handleSubmit(assignment)} disabled={!draft.file}>
+                          <Send className="mr-2 h-4 w-4" />
+                          {isResubmit ? "Resubmit" : "Submit assignment"}
+                        </Button>
+                      </div>
                     </div>
                   </div>
                 );

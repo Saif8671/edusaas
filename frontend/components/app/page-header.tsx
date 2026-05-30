@@ -18,7 +18,7 @@ export function PageHeader({ eyebrow, title, description, actions, hideTitle }: 
   return (
     <div
       className={cn(
-        "flex flex-col gap-3 border-b border-border/50 pb-4 sm:flex-row sm:items-start sm:justify-between",
+        "flex min-w-0 flex-col gap-3 border-b border-border/50 pb-4 sm:flex-row sm:items-start sm:justify-between",
         !description && !actions && hideTitle && "border-0 pb-0",
       )}
     >
@@ -31,7 +31,7 @@ export function PageHeader({ eyebrow, title, description, actions, hideTitle }: 
         ) : null}
         {description ? <p className="max-w-2xl text-sm leading-relaxed text-muted-foreground">{description}</p> : null}
       </div>
-      {actions ? <div className="flex shrink-0 flex-wrap items-center gap-2">{actions}</div> : null}
+      {actions ? <div className="flex min-w-0 w-full flex-wrap items-center gap-2 sm:w-auto sm:justify-end">{actions}</div> : null}
     </div>
   );
 }
