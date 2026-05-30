@@ -5,7 +5,7 @@ export default function AdminAttendancePage() {
     <AttendanceDashboard
       mode="admin"
       title="Attendance Management"
-      subtitle="Manage and track student attendance efficiently from a single control surface."
+      subtitle="Manage student and faculty attendance efficiently from a single control surface."
       actionLabel="Take Attendance"
       secondaryActionLabel="Bulk Upload"
       tertiaryActionLabel="Export Report"

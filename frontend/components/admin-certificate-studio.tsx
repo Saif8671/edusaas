@@ -2,12 +2,18 @@
 
 import { useEffect, useMemo, useRef, useState, type ChangeEvent } from "react";
 import type { StudentData } from "@/lib/store";
+import { useAppStore } from "@/lib/store";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Download, Sparkles, Upload, Share2, ShieldCheck } from "lucide-react";
 import { cn } from "@/lib/utils";
+import {
+  buildCertificateIssuedHtml,
+  buildCertificateIssuedText,
+  deliverNotification,
+} from "@/lib/notifications";
 
 type AdminCertificateStudioProps = {
   student: StudentData | null;
@@ -191,14 +197,22 @@ async function renderCertificateCanvas(
   ctx.fillText("Principal Office", width - 150, 1040);
 }
 
+function canvasToBlob(canvas: HTMLCanvasElement) {
+  return new Promise<Blob | null>((resolve) => {
+    canvas.toBlob((blob) => resolve(blob), "image/png");
+  });
+}
+
 export function AdminCertificateStudio({ student }: AdminCertificateStudioProps) {
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
+  const { addNotification } = useAppStore();
   const [theme, setTheme] = useState<CanvasMode>("emerald");
   const [issuer, setIssuer] = useState("Academic Admin");
   const [backgroundUrl, setBackgroundUrl] = useState<string | null>(null);
   const [isRendering, setIsRendering] = useState(false);
   const [lastIssuedAt, setLastIssuedAt] = useState<string | null>(null);
+  const [sendingNotification, setSendingNotification] = useState(false);
 
   const selectedStudent = student;
 
@@ -229,16 +243,16 @@ export function AdminCertificateStudio({ student }: AdminCertificateStudioProps)
 
     await renderCertificateCanvas(canvas, selectedStudent, theme, backgroundUrl, issuer);
 
-    canvas.toBlob((blob) => {
-      if (!blob) return;
-      const link = document.createElement("a");
-      const objectUrl = URL.createObjectURL(blob);
-      link.href = objectUrl;
-      link.download = downloadName;
-      link.click();
-      URL.revokeObjectURL(objectUrl);
-      setLastIssuedAt(new Date().toLocaleTimeString([], { hour: "numeric", minute: "2-digit" }));
-    }, "image/png");
+    const blob = await canvasToBlob(canvas);
+    if (!blob) return;
+
+    const link = document.createElement("a");
+    const objectUrl = URL.createObjectURL(blob);
+    link.href = objectUrl;
+    link.download = downloadName;
+    link.click();
+    URL.revokeObjectURL(objectUrl);
+    setLastIssuedAt(new Date().toLocaleTimeString([], { hour: "numeric", minute: "2-digit" }));
   };
 
   const handleShare = async () => {
@@ -247,16 +261,76 @@ export function AdminCertificateStudio({ student }: AdminCertificateStudioProps)
 
     await renderCertificateCanvas(canvas, selectedStudent, theme, backgroundUrl, issuer);
 
-    canvas.toBlob(async (blob) => {
+    const blob = await canvasToBlob(canvas);
+    if (!blob) return;
+
+    const file = new File([blob], downloadName, { type: "image/png" });
+    await navigator.share({
+      title: `Certificate for ${selectedStudent.name}`,
+      text: `Completion certificate for ${selectedStudent.name}`,
+      files: [file],
+    });
+    setLastIssuedAt(new Date().toLocaleTimeString([], { hour: "numeric", minute: "2-digit" }));
+  };
+
+  const handleIssueAndNotify = async () => {
+    const canvas = canvasRef.current;
+    if (!canvas || !selectedStudent) return;
+
+    try {
+      setSendingNotification(true);
+      await renderCertificateCanvas(canvas, selectedStudent, theme, backgroundUrl, issuer);
+      const blob = await canvasToBlob(canvas);
       if (!blob) return;
-      const file = new File([blob], downloadName, { type: "image/png" });
-      await navigator.share({
-        title: `Certificate for ${selectedStudent.name}`,
-        text: `Completion certificate for ${selectedStudent.name}`,
-        files: [file],
-      });
+
+      const link = document.createElement("a");
+      const objectUrl = URL.createObjectURL(blob);
+      link.href = objectUrl;
+      link.download = downloadName;
+      link.click();
+      URL.revokeObjectURL(objectUrl);
+
+      const certificatePayload = {
+        studentName: selectedStudent.name,
+        course: selectedStudent.course,
+        batch: selectedStudent.batch,
+        certificateId: `CERT-${selectedStudent.id}`,
+        issuer,
+      };
+
+      const primaryEmail = selectedStudent.email;
+      const primaryPhone = selectedStudent.phone;
+      const parentEmail = selectedStudent.parentEmail;
+      const parentPhone = selectedStudent.parentPhone;
+
+      await Promise.all([
+        deliverNotification({
+          toEmail: primaryEmail,
+          toPhone: primaryPhone,
+          subject: `Certificate issued for ${selectedStudent.name}`,
+          html: buildCertificateIssuedHtml(certificatePayload),
+          text: buildCertificateIssuedText(certificatePayload),
+          whatsappBody: buildCertificateIssuedText(certificatePayload),
+        }),
+        parentEmail || parentPhone
+          ? deliverNotification({
+              toEmail: parentEmail,
+              toPhone: parentPhone,
+              subject: `Certificate issued for ${selectedStudent.name}`,
+              html: buildCertificateIssuedHtml(certificatePayload),
+              text: buildCertificateIssuedText(certificatePayload),
+              whatsappBody: buildCertificateIssuedText(certificatePayload),
+            })
+          : Promise.resolve(),
+      ]);
+
       setLastIssuedAt(new Date().toLocaleTimeString([], { hour: "numeric", minute: "2-digit" }));
-    }, "image/png");
+      addNotification("Certificate issued", `The certificate for ${selectedStudent.name} was downloaded and shared.`);
+    } catch (error) {
+      addNotification("Certificate notification failed", error instanceof Error ? error.message : "Unable to issue certificate notifications.");
+    } finally {
+      setSendingNotification(false);
+    }
   };
 
   return (
@@ -360,6 +434,14 @@ export function AdminCertificateStudio({ student }: AdminCertificateStudioProps)
                   >
                     <Share2 className="mr-2 h-4 w-4" />
                     Share certificate
+                  </Button>
+                  <Button
+                    onClick={handleIssueAndNotify}
+                    className="w-full justify-start rounded-2xl"
+                    disabled={isRendering || sendingNotification}
+                  >
+                    <ShieldCheck className="mr-2 h-4 w-4" />
+                    {sendingNotification ? "Issuing..." : "Issue & notify"}
                   </Button>
                 </div>
                 <input

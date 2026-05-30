@@ -30,6 +30,7 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import { Input } from "@/components/ui/input";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { buildFeeReminderHtml, buildFeeReminderText, deliverNotification } from "@/lib/notifications";
 
 const PIE_COLORS = {
   Paid: "#22c55e",
@@ -51,10 +52,11 @@ const paymentMethodLabel = (status: InvoiceData["status"]) => {
 };
 
 export default function AdminPayments() {
-  const { invoices, updateInvoice, addInvoice, addNotification } = useAppStore();
+  const { currentUser, invoices, updateInvoice, addInvoice, addNotification, students } = useAppStore();
   const [statusFilter, setStatusFilter] = useState<"All" | InvoiceData["status"]>("All");
   const [search, setSearch] = useState("");
   const [invoiceDialogOpen, setInvoiceDialogOpen] = useState(false);
+  const [sendingReminderFor, setSendingReminderFor] = useState<string | null>(null);
   const [newInvoice, setNewInvoice] = useState({
     childName: "",
     amount: "",
@@ -93,6 +95,8 @@ export default function AdminPayments() {
     });
   }, [invoices, search, statusFilter]);
 
+  const pendingInvoices = useMemo(() => invoices.filter((invoice) => invoice.status !== "Paid"), [invoices]);
+
   const openInvoiceDialog = () => {
     setNewInvoice({
       childName: "",
@@ -123,8 +127,58 @@ export default function AdminPayments() {
     addNotification("Payment settled", `${invoice.id} was marked as paid.`);
   };
 
-  const handleSendReminder = (invoice: InvoiceData) => {
-    addNotification("Fee reminder sent", `Reminder queued for ${invoice.childName} on ${invoice.id}.`);
+  const getFeeReminderTarget = (invoice: InvoiceData) => {
+    const matchedStudent =
+      students.find((student) => student.name === invoice.childName) ??
+      students.find((student) => student.parentName === currentUser?.name) ??
+      students[0] ??
+      null;
+
+    return {
+      childName: invoice.childName,
+      invoiceId: invoice.id,
+      amount: invoice.amount,
+      dueDate: invoice.dueDate,
+      email: matchedStudent?.parentEmail ?? matchedStudent?.email ?? "parent@example.com",
+      phone: matchedStudent?.parentPhone ?? matchedStudent?.phone ?? "+91 90000 00000",
+    };
+  };
+
+  const sendFeeReminder = async (invoice: InvoiceData) => {
+    const target = getFeeReminderTarget(invoice);
+
+    await deliverNotification({
+      toEmail: target.email,
+      toPhone: target.phone,
+      subject: `Fee reminder for ${target.childName} - ${target.invoiceId}`,
+      html: buildFeeReminderHtml(target),
+      text: buildFeeReminderText(target),
+      whatsappBody: buildFeeReminderText(target),
+    });
+  };
+
+  const handleSendReminder = async (invoice: InvoiceData) => {
+    try {
+      setSendingReminderFor(invoice.id);
+      await sendFeeReminder(invoice);
+      addNotification("Fee reminder sent", `Reminder sent for ${invoice.childName} on ${invoice.id}.`);
+    } catch (error) {
+      addNotification("Fee reminder failed", error instanceof Error ? error.message : "Unable to send reminder.");
+    } finally {
+      setSendingReminderFor(null);
+    }
+  };
+
+  const handleSendAllReminders = async () => {
+    try {
+      setSendingReminderFor("bulk");
+      await Promise.all(pendingInvoices.map((invoice) => sendFeeReminder(invoice)));
+      addNotification("Fee reminders dispatched", "Pending and overdue invoices were sent through WhatsApp and email.");
+    } catch (error) {
+      addNotification("Fee reminder failed", error instanceof Error ? error.message : "Unable to send reminders.");
+    } finally {
+      setSendingReminderFor(null);
+    }
   };
 
   const statusBadge = (status: InvoiceData["status"]) => {
@@ -161,9 +215,9 @@ export default function AdminPayments() {
             <Download className="mr-2 h-4 w-4" />
             Export report
           </Button>
-          <Button variant="outline" className="rounded-full" onClick={() => addNotification("Reminders queued", "Pending and overdue invoices were queued for follow-up.")}>
+          <Button variant="outline" className="rounded-full" onClick={handleSendAllReminders} disabled={sendingReminderFor === "bulk"}>
             <Send className="mr-2 h-4 w-4" />
-            Send reminders
+            {sendingReminderFor === "bulk" ? "Sending..." : "Send reminders"}
           </Button>
           <Button className="rounded-full bg-primary px-5" onClick={openInvoiceDialog}>
             <Plus className="mr-2 h-4 w-4" />
@@ -309,9 +363,15 @@ export default function AdminPayments() {
                         <div className="flex justify-end gap-2">
                           {invoice.status !== "Paid" && (
                             <>
-                              <Button variant="outline" size="sm" className="rounded-full" onClick={() => handleSendReminder(invoice)}>
+                              <Button
+                                variant="outline"
+                                size="sm"
+                                className="rounded-full"
+                                onClick={() => handleSendReminder(invoice)}
+                                disabled={sendingReminderFor === invoice.id}
+                              >
                                 <Send className="mr-2 h-3.5 w-3.5" />
-                                Remind
+                                {sendingReminderFor === invoice.id ? "Sending..." : "Remind"}
                               </Button>
                               <Button size="sm" className="rounded-full" onClick={() => handleMarkPaid(invoice)}>
                                 <ShieldCheck className="mr-2 h-3.5 w-3.5" />
@@ -410,7 +470,7 @@ export default function AdminPayments() {
                 {
                   title: "Send fee reminder",
                   description: "Ping pending and overdue invoices.",
-                  onClick: () => addNotification("Fee reminders dispatched", "Payment reminders were prepared for follow-up."),
+                  onClick: handleSendAllReminders,
                 },
                 {
                   title: "Download receipt bundle",

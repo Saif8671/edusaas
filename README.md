@@ -43,11 +43,18 @@ Frontend environment variables are documented in `frontend/.env.example`. At min
 - `NEXT_PUBLIC_RAZORPAY_KEY_ID`
 - `RAZORPAY_KEY_ID`
 - `RAZORPAY_KEY_SECRET`
+- `RESEND_API_KEY`
+- `RESEND_FROM_EMAIL`
+- `TWILIO_SID`
+- `TWILIO_TOKEN`
+- `TWILIO_WHATSAPP_FROM`
 - `ZOOM_S2S_ACCOUNT_ID`
 - `ZOOM_S2S_CLIENT_ID`
 - `ZOOM_S2S_CLIENT_SECRET`
 - `ZOOM_HOST_USER_ID`
 - `ZOOM_TIMEZONE`
+
+For WhatsApp alerts, the Twilio WhatsApp sandbox or a WhatsApp-enabled Twilio number must be configured. For email alerts, set a verified Resend sender in `RESEND_FROM_EMAIL`.
 
 For the backend, set:
 
@@ -80,7 +87,7 @@ Deploy the `frontend/` folder as the site root.
 - Publish directory: `.next`
 - Netlify plugin: `@netlify/plugin-nextjs`
 
-Add the frontend environment variables in Netlify's site settings before deploying, especially the Razorpay and Zoom values listed above.
+Add the frontend environment variables in Netlify's site settings before deploying, especially the Razorpay, Resend, Twilio, and Zoom values listed above.
 
 ### 6. Useful scripts
 

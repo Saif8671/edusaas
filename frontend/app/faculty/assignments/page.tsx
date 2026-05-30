@@ -7,6 +7,11 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
+import {
+  buildAssignmentDeadlineHtml,
+  buildAssignmentDeadlineText,
+  deliverNotification,
+} from "@/lib/notifications";
 
 const emptyAssignment = {
   title: "",
@@ -15,11 +20,13 @@ const emptyAssignment = {
 };
 
 export default function FacultyAssignments() {
-  const { assignments, addAssignment, deleteAssignment, reviewAssignmentSubmission } = useAppStore();
+  const { assignments, addAssignment, deleteAssignment, reviewAssignmentSubmission, students, addNotification } =
+    useAppStore();
   const [showSubmittedOnly, setShowSubmittedOnly] = useState(false);
   const [expandedIds, setExpandedIds] = useState<string[]>(assignments.filter((assignment) => assignment.status !== "Pending").map((assignment) => assignment.id));
   const [form, setForm] = useState(emptyAssignment);
   const [marksBySubmission, setMarksBySubmission] = useState<Record<string, { marks: string; feedback: string }>>({});
+  const [sendingReminderFor, setSendingReminderFor] = useState<string | null>(null);
 
   const toggleExpanded = (id: string) => {
     setExpandedIds((current) => (current.includes(id) ? current.filter((value) => value !== id) : [...current, id]));
@@ -38,6 +45,51 @@ export default function FacultyAssignments() {
   const visibleAssignments = showSubmittedOnly
     ? assignments.filter((assignment) => (assignment.submissions ?? []).length > 0 || assignment.status !== "Pending")
     : assignments;
+
+  const sendDeadlineReminder = async (assignment: AssignmentData) => {
+    const recipients = students.filter((student) => student.course === assignment.course);
+
+    if (recipients.length === 0) {
+      throw new Error(`No enrolled students found for ${assignment.course}.`);
+    }
+
+    await Promise.all(
+      recipients.map((student) =>
+        deliverNotification({
+          toEmail: student.email,
+          toPhone: student.phone,
+          subject: `Assignment reminder: ${assignment.title}`,
+          html: buildAssignmentDeadlineHtml({
+            title: assignment.title,
+            course: assignment.course,
+            deadline: assignment.deadline,
+          }),
+          text: buildAssignmentDeadlineText({
+            title: assignment.title,
+            course: assignment.course,
+            deadline: assignment.deadline,
+          }),
+          whatsappBody: buildAssignmentDeadlineText({
+            title: assignment.title,
+            course: assignment.course,
+            deadline: assignment.deadline,
+          }),
+        }),
+      ),
+    );
+  };
+
+  const handleSendReminder = async (assignment: AssignmentData) => {
+    try {
+      setSendingReminderFor(assignment.id);
+      await sendDeadlineReminder(assignment);
+      addNotification("Assignment reminder sent", `Deadline reminders were sent for ${assignment.title}.`);
+    } catch (error) {
+      addNotification("Assignment reminder failed", error instanceof Error ? error.message : "Unable to send reminder.");
+    } finally {
+      setSendingReminderFor(null);
+    }
+  };
 
   return (
     <div className="space-y-6">
@@ -207,6 +259,16 @@ export default function FacultyAssignments() {
                 )}
 
                 <div className="flex gap-2">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="flex-1 rounded-xl gap-1"
+                    onClick={() => handleSendReminder(assignment)}
+                    disabled={sendingReminderFor === assignment.id}
+                  >
+                    <Send className="h-3.5 w-3.5" />
+                    {sendingReminderFor === assignment.id ? "Sending..." : "Send reminder"}
+                  </Button>
                   <Button variant="outline" size="sm" className="flex-1 rounded-xl gap-1" onClick={() => toggleExpanded(assignment.id)}>
                     <PencilLine className="h-3.5 w-3.5" />
                     {isExpanded ? "Hide submitted" : "View submitted"}

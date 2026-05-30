@@ -19,6 +19,8 @@ export interface StudentData {
   name: string;
   email: string;
   phone: string;
+  parentEmail?: string;
+  parentPhone?: string;
   course: string;
   batch: string;
   parentName: string;
@@ -252,10 +254,10 @@ export const useAppStore = create<AppStore>()(
         },
       ],
       students: [
-        { id: "STU-001", name: "Saif Rahman", email: "saif@edu.com", phone: "+91 9876543210", course: "Advanced Quantum Computing", batch: "QC-2026", parentName: "A. Rahman", status: "Active", attendancePct: 88, progress: 65 },
-        { id: "STU-002", name: "Amelia Stone", email: "amelia@edu.com", phone: "+1 415 555 2671", course: "Artificial Intelligence & ML", batch: "AI-Alpha", parentName: "Robert Stone", status: "Active", attendancePct: 92, progress: 80 },
-        { id: "STU-003", name: "Marcus Vane", email: "marcus@edu.com", phone: "+44 20 7946 0958", course: "Data Structures & Algorithms", batch: "CS-Beta", parentName: "L. Vane", status: "Active", attendancePct: 72, progress: 45 },
-        { id: "STU-004", name: "Kareem Abdul", email: "kareem@edu.com", phone: "+971 4 234 5678", course: "Advanced Quantum Computing", batch: "QC-2026", parentName: "M. Abdul", status: "Deactivated", attendancePct: 85, progress: 95 },
+        { id: "STU-001", name: "Saif Rahman", email: "saif@edu.com", phone: "+91 9876543210", parentEmail: "rahman.parent@edu.com", parentPhone: "+91 9876500001", course: "Advanced Quantum Computing", batch: "QC-2026", parentName: "A. Rahman", status: "Active", attendancePct: 88, progress: 65 },
+        { id: "STU-002", name: "Amelia Stone", email: "amelia@edu.com", phone: "+1 415 555 2671", parentEmail: "robert.stone@edu.com", parentPhone: "+1 415 555 2001", course: "Artificial Intelligence & ML", batch: "AI-Alpha", parentName: "Robert Stone", status: "Active", attendancePct: 92, progress: 80 },
+        { id: "STU-003", name: "Marcus Vane", email: "marcus@edu.com", phone: "+44 20 7946 0958", parentEmail: "l.vane@edu.com", parentPhone: "+44 20 7946 0123", course: "Data Structures & Algorithms", batch: "CS-Beta", parentName: "L. Vane", status: "Active", attendancePct: 72, progress: 45 },
+        { id: "STU-004", name: "Kareem Abdul", email: "kareem@edu.com", phone: "+971 4 234 5678", parentEmail: "m.abdul@edu.com", parentPhone: "+971 4 234 5600", course: "Advanced Quantum Computing", batch: "QC-2026", parentName: "M. Abdul", status: "Deactivated", attendancePct: 85, progress: 95 },
       ],
       faculty: [
         { id: "FAC-101", name: "Dr. Albert Stark", email: "albert@edu.com", department: "Physics", subjects: ["Quantum Physics", "Electromagnetism"], experience: "12 Years", assignedCourses: ["Advanced Quantum Computing"], assignedBatches: ["QC-2026"], status: "Active" },

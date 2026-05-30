@@ -5,7 +5,7 @@ export default function FacultyAttendancePage() {
     <AttendanceDashboard
       mode="faculty"
       title="Attendance Management"
-      subtitle="Mark daily attendance, watch the trend line, and alert guardians early when participation drops."
+      subtitle="Track batch attendance, mark presence quickly, and flag students at risk before the day ends."
       actionLabel="Start Session"
       secondaryActionLabel="Mark All Present"
       tertiaryActionLabel="Export CSV"
