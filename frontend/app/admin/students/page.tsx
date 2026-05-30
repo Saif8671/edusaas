@@ -1,14 +1,14 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import { Search, Download, Eye, PencilLine, PlusCircle, Trash2, Filter, ShieldAlert } from "lucide-react";
+import { Search, Download, Eye, PencilLine, PlusCircle, Trash2, Filter } from "lucide-react";
 import { useAppStore, StudentData } from "@/lib/store";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Drawer, DrawerContent, DrawerDescription, DrawerHeader, DrawerTitle, DrawerTrigger } from "@/components/ui/drawer";
 import { Input } from "@/components/ui/input";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { StudentAcademicFileDrawer } from "@/components/student-academic-file-drawer";
 
 type StudentForm = {
   name: string;
@@ -33,7 +33,6 @@ const blankStudent: StudentForm = {
 export default function AdminStudents() {
   const { students, addStudent, updateStudent, deleteStudent } = useAppStore();
   const [searchTerm, setSearchTerm] = useState("");
-  const [selectedStudent, setSelectedStudent] = useState<StudentData | null>(null);
   const [editingStudentId, setEditingStudentId] = useState<string | null>(null);
   const [form, setForm] = useState<StudentForm>(blankStudent);
 
@@ -215,50 +214,14 @@ export default function AdminStudents() {
                       </TableCell>
                       <TableCell className="text-right">
                         <div className="flex items-center justify-end gap-2">
-                          <Drawer>
-                            <DrawerTrigger asChild>
-                              <Button variant="ghost" size="icon" onClick={() => setSelectedStudent(student)}>
+                          <StudentAcademicFileDrawer
+                            student={student}
+                            trigger={
+                              <Button variant="ghost" size="icon">
                                 <Eye className="h-4 w-4" />
                               </Button>
-                            </DrawerTrigger>
-                            <DrawerContent className="p-6">
-                              <DrawerHeader>
-                                <DrawerTitle>Student Academic File: {selectedStudent?.name}</DrawerTitle>
-                                <DrawerDescription>Detailed statistics, parent connections, and progress milestones.</DrawerDescription>
-                              </DrawerHeader>
-                              {selectedStudent && (
-                                <div className="grid grid-cols-1 gap-6 py-6 text-sm md:grid-cols-3">
-                                  <div className="space-y-2 rounded-xl bg-muted/30 p-4">
-                                    <h4 className="font-bold text-primary">Registration Metadata</h4>
-                                    <p><strong>Student ID:</strong> {selectedStudent.id}</p>
-                                    <p><strong>Email Address:</strong> {selectedStudent.email}</p>
-                                    <p><strong>Mobile Connection:</strong> {selectedStudent.phone}</p>
-                                  </div>
-                                  <div className="space-y-2 rounded-xl bg-muted/30 p-4">
-                                    <h4 className="font-bold text-purple-500">Course & Attendance</h4>
-                                    <p><strong>Current Course:</strong> {selectedStudent.course}</p>
-                                    <p><strong>Class Batch:</strong> {selectedStudent.batch}</p>
-                                    <p><strong>Average Attendance:</strong> {selectedStudent.attendancePct}%</p>
-                                    {selectedStudent.attendancePct < 75 && (
-                                      <div className="flex items-center gap-1.5 rounded-lg border border-red-500/20 bg-red-500/10 p-2 text-xs font-semibold text-red-500">
-                                        <ShieldAlert className="h-4 w-4" />
-                                        Attendance critically low!
-                                      </div>
-                                    )}
-                                  </div>
-                                  <div className="space-y-2 rounded-xl bg-muted/30 p-4">
-                                    <h4 className="font-bold text-green-500">Syllabus Completion</h4>
-                                    <p><strong>Parent/Guardian Link:</strong> {selectedStudent.parentName}</p>
-                                    <p><strong>Syllabus Progress:</strong> {selectedStudent.progress}%</p>
-                                    <div className="mt-1 h-2.5 w-full overflow-hidden rounded-full bg-muted">
-                                      <div className="h-full bg-green-500" style={{ width: `${selectedStudent.progress}%` }} />
-                                    </div>
-                                  </div>
-                                </div>
-                              )}
-                            </DrawerContent>
-                          </Drawer>
-
+                            }
+                          />
                           <Button variant="ghost" size="icon" onClick={() => startEdit(student)}>
                             <PencilLine className="h-4 w-4" />
                           </Button>
