@@ -4,11 +4,11 @@ export default function FacultyAttendancePage() {
   return (
     <AttendanceDashboard
       mode="faculty"
-      title="Student Attendance"
-      subtitle="Manage and track attendance for your batches"
-      actionLabel="Save Attendance"
+      title="Attendance Management"
+      subtitle="Mark daily attendance, watch the trend line, and alert guardians early when participation drops."
+      actionLabel="Start Session"
       secondaryActionLabel="Mark All Present"
-      tertiaryActionLabel="Export Report"
+      tertiaryActionLabel="Export CSV"
     />
   );
 }
