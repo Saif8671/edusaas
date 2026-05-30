@@ -32,6 +32,7 @@ import { PageHeader } from "@/components/app/page-header";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { buildFeeReminderHtml, buildFeeReminderText, deliverNotification } from "@/lib/notifications";
+import { toast } from "@/lib/toast";
 
 const PIE_COLORS = {
   Paid: "#22c55e",
@@ -52,12 +53,29 @@ const paymentMethodLabel = (status: InvoiceData["status"]) => {
   return "Online Checkout";
 };
 
+type ReceiptPreview = {
+  receiptId: string;
+  invoiceId: string;
+  childName: string;
+  amount: number;
+  dueDate: string;
+  status: string;
+  paymentMethod: string;
+  paidAt: string;
+  fileName: string;
+  html: string;
+  text: string;
+};
+
 export default function AdminPayments() {
   const { currentUser, invoices, updateInvoice, addInvoice, addNotification, students } = useAppStore();
   const [statusFilter, setStatusFilter] = useState<"All" | InvoiceData["status"]>("All");
   const [search, setSearch] = useState("");
   const [invoiceDialogOpen, setInvoiceDialogOpen] = useState(false);
   const [sendingReminderFor, setSendingReminderFor] = useState<string | null>(null);
+  const [viewingReceiptFor, setViewingReceiptFor] = useState<string | null>(null);
+  const [receiptDialogOpen, setReceiptDialogOpen] = useState(false);
+  const [receiptPreview, setReceiptPreview] = useState<ReceiptPreview | null>(null);
   const [newInvoice, setNewInvoice] = useState({
     childName: "",
     amount: "",
@@ -130,9 +148,9 @@ export default function AdminPayments() {
 
   const getFeeReminderTarget = (invoice: InvoiceData) => {
     const matchedStudent =
-      students.find((student) => student.name === invoice.childName) ??
-      students.find((student) => student.parentName === currentUser?.name) ??
-      students[0] ??
+      students.find((student) => student.name === invoice.childName) ?? 
+      students.find((student) => student.parentName === currentUser?.name) ?? 
+      students[0] ?? 
       null;
 
     return {
@@ -140,7 +158,6 @@ export default function AdminPayments() {
       invoiceId: invoice.id,
       amount: invoice.amount,
       dueDate: invoice.dueDate,
-      email: matchedStudent?.parentEmail ?? matchedStudent?.email ?? "parent@example.com",
       phone: matchedStudent?.parentPhone ?? matchedStudent?.phone ?? "+91 90000 00000",
     };
   };
@@ -149,7 +166,6 @@ export default function AdminPayments() {
     const target = getFeeReminderTarget(invoice);
 
     await deliverNotification({
-      toEmail: target.email,
       toPhone: target.phone,
       subject: `Fee reminder for ${target.childName} - ${target.invoiceId}`,
       html: buildFeeReminderHtml(target),
@@ -174,11 +190,80 @@ export default function AdminPayments() {
     try {
       setSendingReminderFor("bulk");
       await Promise.all(pendingInvoices.map((invoice) => sendFeeReminder(invoice)));
-      addNotification("Fee reminders dispatched", "Pending and overdue invoices were sent through WhatsApp and email.");
+      addNotification("Fee reminders dispatched", "Pending and overdue invoices were sent through WhatsApp.");
     } catch (error) {
       addNotification("Fee reminder failed", error instanceof Error ? error.message : "Unable to send reminders.");
     } finally {
       setSendingReminderFor(null);
+    }
+  };
+
+  const downloadReceiptFile = (payload: { fileName: string; html: string; text: string; contentType?: string }) => {
+    const blob = new Blob([payload.html || payload.text], { type: payload.contentType ?? "text/html;charset=utf-8" });
+    const url = URL.createObjectURL(blob);
+    const anchor = document.createElement("a");
+    anchor.href = url;
+    anchor.download = payload.fileName;
+    anchor.click();
+    URL.revokeObjectURL(url);
+  };
+
+  const downloadReceiptBundle = () => {
+    const csvRows = [
+      ["Invoice ID", "Student", "Amount", "Due Date", "Status"],
+      ...invoices.map((invoice) => [
+        invoice.id,
+        invoice.childName,
+        invoice.amount.toString(),
+        invoice.dueDate,
+        invoice.status,
+      ]),
+    ];
+    const csv = csvRows.map((row) => row.join(",")).join("\n");
+    const blob = new Blob([csv], { type: "text/csv;charset=utf-8" });
+    const url = URL.createObjectURL(blob);
+    const anchor = document.createElement("a");
+    anchor.href = url;
+    anchor.download = "payment-receipt-bundle.csv";
+    anchor.click();
+    URL.revokeObjectURL(url);
+    addNotification("Receipt bundle downloaded", "A CSV export of the invoice ledger has been generated.");
+    toast.success("Receipt bundle downloaded");
+  };
+
+  const handleViewReceipt = async (invoice: InvoiceData) => {
+    try {
+      setViewingReceiptFor(invoice.id);
+      const response = await fetch("/api/razorpay/receipt", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          invoiceId: invoice.id,
+          childName: invoice.childName,
+          amount: invoice.amount,
+          dueDate: invoice.dueDate,
+          status: invoice.status,
+          paymentMethod: "Razorpay UPI",
+          paidAt: new Date().toISOString(),
+        }),
+      });
+
+      const data = (await response.json()) as { receipt?: ReceiptPreview; error?: string };
+      if (!response.ok || !data.receipt) {
+        throw new Error(data.error || "Unable to load receipt.");
+      }
+
+      setReceiptPreview(data.receipt);
+      setReceiptDialogOpen(true);
+      downloadReceiptFile(data.receipt);
+      addNotification("Receipt downloaded", `${invoice.id} receipt is ready for viewing and download.`);
+    } catch (error) {
+      addNotification("Receipt failed", error instanceof Error ? error.message : "Unable to load receipt.");
+      toast.error(error instanceof Error ? error.message : "Unable to load receipt.");
+    } finally {
+      setViewingReceiptFor(null);
     }
   };
 
@@ -208,7 +293,7 @@ export default function AdminPayments() {
             </Button>
             <Button variant="outline" className="rounded-full" onClick={handleSendAllReminders} disabled={sendingReminderFor === "bulk"}>
               <Send className="mr-2 h-4 w-4" />
-              {sendingReminderFor === "bulk" ? "Sending..." : "Send reminders"}
+              {sendingReminderFor === "bulk" ? "Sending..." : "Send WhatsApp reminders"}
             </Button>
             <Button className="rounded-full bg-primary px-5" onClick={openInvoiceDialog}>
               <Plus className="mr-2 h-4 w-4" />
@@ -372,9 +457,15 @@ export default function AdminPayments() {
                             </>
                           )}
                           {invoice.status === "Paid" && (
-                            <Button variant="outline" size="sm" className="rounded-full">
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              className="rounded-full"
+                              onClick={() => handleViewReceipt(invoice)}
+                              disabled={viewingReceiptFor === invoice.id}
+                            >
                               <ArrowUpRight className="mr-2 h-3.5 w-3.5" />
-                              View receipt
+                              {viewingReceiptFor === invoice.id ? "Loading..." : "View receipt"}
                             </Button>
                           )}
                         </div>
@@ -452,42 +543,113 @@ export default function AdminPayments() {
               <CardTitle className="text-xl">Quick actions</CardTitle>
               <CardDescription>Common finance tasks inspired by the sample layout.</CardDescription>
             </CardHeader>
-            <CardContent className="space-y-3">
+            <CardContent className="flex gap-3 overflow-x-auto pb-2">
               {[
                 {
                   title: "Generate invoice",
                   description: "Create a new student billing entry.",
                   onClick: openInvoiceDialog,
+                  icon: Plus,
                 },
                 {
-                  title: "Send fee reminder",
+                  title: "WhatsApp reminders",
                   description: "Ping pending and overdue invoices.",
                   onClick: handleSendAllReminders,
+                  icon: BellRing,
                 },
                 {
                   title: "Download receipt bundle",
                   description: "Collect payment history for auditing.",
-                  onClick: () => addNotification("Receipt bundle prepared", "A PDF export stub has been prepared in this demo."),
+                  onClick: downloadReceiptBundle,
+                  icon: Download,
                 },
-              ].map((action) => (
+              ].map((action) => {
+                const Icon = action.icon;
+
+                return (
                 <button
                   key={action.title}
                   onClick={action.onClick}
-                  className="flex w-full items-center gap-4 rounded-[1.2rem] border bg-background/70 p-4 text-left transition-all hover:-translate-y-0.5 hover:border-primary/40 hover:shadow-md"
+                  className="flex min-w-[240px] flex-1 items-center gap-4 rounded-[1.2rem] border bg-background/70 p-4 text-left transition-all hover:-translate-y-0.5 hover:border-primary/40 hover:shadow-md"
                 >
                   <span className="flex h-11 w-11 items-center justify-center rounded-2xl bg-primary/10 text-primary">
-                    <Plus className="h-5 w-5" />
+                    <Icon className="h-5 w-5" />
                   </span>
                   <div className="min-w-0 flex-1">
                     <p className="font-medium">{action.title}</p>
                     <p className="text-sm text-muted-foreground">{action.description}</p>
                   </div>
                 </button>
-              ))}
+                );
+              })}
             </CardContent>
           </Card>
         </div>
       </div>
+
+      <Dialog open={receiptDialogOpen} onOpenChange={setReceiptDialogOpen}>
+        <DialogContent className="sm:max-w-2xl">
+          <DialogHeader>
+            <DialogTitle>Receipt preview</DialogTitle>
+            <DialogDescription>
+              View the receipt that was generated from the backend and download it for records.
+            </DialogDescription>
+          </DialogHeader>
+
+          {receiptPreview ? (
+            <div className="grid gap-4 py-2 md:grid-cols-[1fr_0.85fr]">
+              <div className="rounded-2xl border bg-background/70 p-4">
+                <p className="text-xs uppercase tracking-[0.18em] text-muted-foreground">Receipt details</p>
+                <div className="mt-4 space-y-3 text-sm">
+                  <div className="flex items-center justify-between gap-3">
+                    <span className="text-muted-foreground">Receipt ID</span>
+                    <span className="font-medium">{receiptPreview.receiptId}</span>
+                  </div>
+                  <div className="flex items-center justify-between gap-3">
+                    <span className="text-muted-foreground">Student</span>
+                    <span className="font-medium">{receiptPreview.childName}</span>
+                  </div>
+                  <div className="flex items-center justify-between gap-3">
+                    <span className="text-muted-foreground">Invoice</span>
+                    <span className="font-medium">{receiptPreview.invoiceId}</span>
+                  </div>
+                  <div className="flex items-center justify-between gap-3">
+                    <span className="text-muted-foreground">Amount</span>
+                    <span className="font-medium">{formatCurrency(receiptPreview.amount)}</span>
+                  </div>
+                  <div className="flex items-center justify-between gap-3">
+                    <span className="text-muted-foreground">Status</span>
+                    <span className="font-medium">{receiptPreview.status}</span>
+                  </div>
+                  <div className="flex items-center justify-between gap-3">
+                    <span className="text-muted-foreground">Method</span>
+                    <span className="font-medium">{receiptPreview.paymentMethod}</span>
+                  </div>
+                </div>
+              </div>
+
+              <div className="rounded-2xl border bg-muted/20 p-4">
+                <p className="text-xs uppercase tracking-[0.18em] text-muted-foreground">Receipt text</p>
+                <pre className="mt-4 max-h-[20rem] overflow-auto whitespace-pre-wrap rounded-xl bg-background p-4 text-xs leading-6 text-muted-foreground">
+                  {receiptPreview.text}
+                </pre>
+              </div>
+            </div>
+          ) : null}
+
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setReceiptDialogOpen(false)}>
+              Close
+            </Button>
+            {receiptPreview ? (
+              <Button onClick={() => downloadReceiptFile(receiptPreview)}>
+                <Download className="mr-2 h-4 w-4" />
+                Download again
+              </Button>
+            ) : null}
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       <Dialog open={invoiceDialogOpen} onOpenChange={setInvoiceDialogOpen}>
         <DialogContent className="sm:max-w-lg">

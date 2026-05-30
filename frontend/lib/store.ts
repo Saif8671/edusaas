@@ -73,9 +73,15 @@ export interface InvoiceData {
 
 export interface AssignmentSubmission {
   id: string;
+  studentId: string;
   studentName: string;
+  studentEmail?: string;
+  studentPhone?: string;
   submittedAt: string;
   fileName: string;
+  fileSize?: number;
+  fileType?: string;
+  notes?: string;
   status: "Submitted" | "Reviewed";
   marks?: string;
   feedback?: string;
@@ -91,6 +97,21 @@ export interface AssignmentData {
   grade?: string;
   feedback?: string;
   submissions?: AssignmentSubmission[];
+}
+
+export interface AttendanceSessionEntry {
+  rollNo: string;
+  name: string;
+  status: "present" | "absent" | "late";
+}
+
+export interface AttendanceSessionData {
+  id: string;
+  batchId: string;
+  mode: "admin" | "faculty";
+  capturedAt: string;
+  date: string;
+  entries: AttendanceSessionEntry[];
 }
 
 export interface LiveSessionData {
@@ -159,6 +180,7 @@ interface AppStore {
   invoices: InvoiceData[];
   assignments: AssignmentData[];
   liveSessions: LiveSessionData[];
+  attendanceSessions: AttendanceSessionData[];
   
   // Actions
   login: (email: string, role: RoleType) => void;
@@ -188,7 +210,15 @@ interface AppStore {
   addInvoice: (invoice: Omit<InvoiceData, "id">) => void;
   updateInvoice: (id: string, status: "Paid" | "Pending" | "Overdue") => void;
 
-  submitAssignment: (id: string) => void;
+  submitAssignment: (
+    id: string,
+    submission?: {
+      fileName?: string;
+      fileSize?: number;
+      fileType?: string;
+      notes?: string;
+    },
+  ) => void;
   gradeAssignment: (id: string, grade: string, feedback: string) => void;
   addAnnouncement: (
     title: string,
@@ -208,6 +238,7 @@ interface AppStore {
     marks: string,
     feedback: string,
   ) => void;
+  saveAttendanceSession: (session: Omit<AttendanceSessionData, "id" | "capturedAt">) => void;
 
   addLiveSession: (session: Omit<LiveSessionData, "id">) => void;
   updateLiveSession: (id: string, updates: Partial<Omit<LiveSessionData, "id">>) => void;
@@ -283,14 +314,61 @@ export const useAppStore = create<AppStore>()(
       ],
       assignments: [
         { id: "ASM-1", title: "Schrödinger Equation Proofs", course: "Advanced Quantum Computing", batch: "QC-2026", deadline: "2026-06-03", status: "Pending" },
-        { id: "ASM-2", title: "Neural Network from Scratch", course: "Artificial Intelligence & ML", batch: "AI-Alpha", deadline: "2026-05-20", status: "Submitted" },
-        { id: "ASM-3", title: "Graph Traversal Algorithms", course: "Data Structures & Algorithms", batch: "CS-Beta", deadline: "2026-05-15", status: "Reviewed", grade: "A+", feedback: "Excellent code structure and optimization!" },
+        {
+          id: "ASM-2",
+          title: "Neural Network from Scratch",
+          course: "Artificial Intelligence & ML",
+          batch: "AI-Alpha",
+          deadline: "2026-05-20",
+          status: "Submitted",
+          submissions: [
+            {
+              id: "SUB-2001",
+              studentId: "STU-001",
+              studentName: "Saif Rahman",
+              studentEmail: "saif@edu.com",
+              studentPhone: "+91 9876543210",
+              submittedAt: "2026-05-19 21:10",
+              fileName: "neural-network-from-scratch.pdf",
+              fileType: "application/pdf",
+              notes: "Initial implementation with a short training summary.",
+              status: "Submitted",
+            },
+          ],
+        },
+        {
+          id: "ASM-3",
+          title: "Graph Traversal Algorithms",
+          course: "Data Structures & Algorithms",
+          batch: "CS-Beta",
+          deadline: "2026-05-15",
+          status: "Reviewed",
+          grade: "A+",
+          feedback: "Excellent code structure and optimization!",
+          submissions: [
+            {
+              id: "SUB-3001",
+              studentId: "STU-003",
+              studentName: "Marcus Vane",
+              studentEmail: "marcus@edu.com",
+              studentPhone: "+44 20 7946 0958",
+              submittedAt: "2026-05-14 16:05",
+              fileName: "graph-traversal-algorithms.pdf",
+              fileType: "application/pdf",
+              notes: "Covers BFS, DFS, and complexity notes.",
+              status: "Reviewed",
+              marks: "A+",
+              feedback: "Excellent code structure and optimization!",
+            },
+          ],
+        },
       ],
 
       liveSessions: [
         { id: "LIVE-1", title: "Quantum States Live Revision", batch: "QC-2026", platform: "Google Meet", link: "https://meet.google.com/abc-defg-hij", date: "2026-05-28", time: "10:00 AM", status: "Scheduled", notes: "Revision before unit test 2", provider: "Google Meet" },
         { id: "LIVE-2", title: "AI Model Debugging Lab", batch: "AI-Alpha", platform: "Zoom", link: "https://zoom.us/j/123456789", date: "2026-05-29", time: "2:00 PM", status: "Scheduled", notes: "Hands-on model troubleshooting", provider: "Zoom", meetingId: "123456789", passcode: "123456" },
       ],
+      attendanceSessions: [],
 
       login: (email, role) => {
         let name = "Academic Manager";
@@ -407,8 +485,9 @@ export const useAppStore = create<AppStore>()(
         invoices: state.invoices.map(inv => inv.id === id ? { ...inv, status } : inv)
       })),
 
-      submitAssignment: (id) => set((state) => {
+      submitAssignment: (id, submission) => set((state) => {
         const submittedBy = state.currentUser?.name ?? "Saif Rahman";
+        const submittedStudent = state.students.find((student) => student.id === state.currentUser?.id) ?? state.students[0];
         const submittedAt = new Date().toISOString().slice(0, 16).replace("T", " ");
         const updated = state.assignments.map((asm) => {
           if (asm.id !== id) return asm;
@@ -416,9 +495,15 @@ export const useAppStore = create<AppStore>()(
             ...(asm.submissions ?? []),
             {
               id: "SUB-" + Date.now(),
+              studentId: submittedStudent?.id ?? state.currentUser?.id ?? "STU-001",
               studentName: submittedBy,
+              studentEmail: submittedStudent?.email,
+              studentPhone: submittedStudent?.phone,
               submittedAt,
-              fileName: `${asm.title.toLowerCase().replace(/\s+/g, "-")}.pdf`,
+              fileName: submission?.fileName ?? `${asm.title.toLowerCase().replace(/\s+/g, "-")}.pdf`,
+              fileSize: submission?.fileSize,
+              fileType: submission?.fileType ?? "application/pdf",
+              notes: submission?.notes ?? `${submittedBy} submitted the assignment from the student portal.`,
               status: "Submitted" as const,
             },
           ];
@@ -488,6 +573,31 @@ export const useAppStore = create<AppStore>()(
           return { ...assignment, status: "Reviewed" as const, grade: marks, feedback, submissions };
         }),
       })),
+      saveAttendanceSession: (session) => set((state) => {
+        const capturedAt = new Date().toISOString();
+        const sessionRecord: AttendanceSessionData = {
+          ...session,
+          id: `ATD-${Date.now()}`,
+          capturedAt,
+        };
+
+        const attendanceMap = new Map(session.entries.map((entry) => [entry.rollNo, entry.status]));
+        const updatedStudents = state.students.map((student) => {
+          const status = attendanceMap.get(student.id);
+          if (!status) return student;
+
+          const delta = status === "present" ? 1 : status === "late" ? -1 : -3;
+          return {
+            ...student,
+            attendancePct: Math.max(0, Math.min(100, student.attendancePct + delta)),
+          };
+        });
+
+        return {
+          attendanceSessions: [sessionRecord, ...state.attendanceSessions],
+          students: updatedStudents,
+        };
+      }),
 
       addLiveSession: (session) => set((state) => ({
         liveSessions: [
@@ -506,12 +616,13 @@ export const useAppStore = create<AppStore>()(
     }),
     {
       name: "education-platform-store",
-      version: 3,
+      version: 4,
       migrate: (persistedState) => {
         const state = persistedState as Partial<AppStore> & {
           announcements?: Partial<Announcement>[];
           assignments?: Partial<AssignmentData>[];
           messages?: Partial<CommunicationMessage>[];
+          attendanceSessions?: Partial<AttendanceSessionData>[];
         };
 
         return {
@@ -534,7 +645,21 @@ export const useAppStore = create<AppStore>()(
             status: assignment.status ?? "Pending",
             grade: assignment.grade,
             feedback: assignment.feedback,
-            submissions: assignment.submissions ?? [],
+            submissions: (assignment.submissions ?? []).map((submission) => ({
+              id: submission.id ?? `SUB-${Date.now()}`,
+              studentId: submission.studentId ?? "STU-001",
+              studentName: submission.studentName ?? "Student",
+              studentEmail: submission.studentEmail,
+              studentPhone: submission.studentPhone,
+              submittedAt: submission.submittedAt ?? new Date().toISOString(),
+              fileName: submission.fileName ?? "submission.pdf",
+              fileSize: submission.fileSize,
+              fileType: submission.fileType,
+              notes: submission.notes,
+              status: submission.status ?? "Submitted",
+              marks: submission.marks,
+              feedback: submission.feedback,
+            })),
           })),
           messages: (state.messages ?? []).map((message) => ({
             id: message.id ?? `m-${Date.now()}`,
@@ -549,6 +674,18 @@ export const useAppStore = create<AppStore>()(
             targetStudentId: message.targetStudentId,
             targetStudentName: message.targetStudentName,
             priority: message.priority ?? "Normal",
+          })),
+          attendanceSessions: (state.attendanceSessions ?? []).map((session) => ({
+            id: session.id ?? `ATD-${Date.now()}`,
+            batchId: session.batchId ?? "QC-2026",
+            mode: session.mode ?? "faculty",
+            capturedAt: session.capturedAt ?? new Date().toISOString(),
+            date: session.date ?? new Date().toISOString().split("T")[0],
+            entries: (session.entries ?? []).map((entry) => ({
+              rollNo: entry.rollNo ?? "STU-001",
+              name: entry.name ?? "Student",
+              status: entry.status ?? "present",
+            })),
           })),
         } as Partial<AppStore>;
       },

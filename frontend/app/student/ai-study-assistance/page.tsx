@@ -9,12 +9,11 @@ import { Input } from "@/components/ui/input";
 import {
   Bot,
   BookOpen,
+  ChevronRight,
   FileAudio2,
   FileText,
-  LayoutGrid,
   ListChecks,
   Map,
-  MoreVertical,
   PanelLeft,
   PanelRight,
   PlayCircle,
@@ -26,7 +25,6 @@ import {
   Table2,
   Video,
   Presentation,
-  ChevronRight,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { toast } from "@/lib/toast";
@@ -81,6 +79,8 @@ const studioOptions: StudioOption[] = [
   { id: "data-table", label: "Data Table", icon: Table2, description: "Compare concepts in a structured table.", accent: "from-sky-500/20 to-sky-500/5" },
 ];
 
+const quickPrompts = ["Explain this simply", "Quiz me", "Create flashcards", "Summarize the lesson"] as const;
+
 function formatTime(value: string) {
   return new Intl.DateTimeFormat("en-US", {
     hour: "numeric",
@@ -100,7 +100,7 @@ function buildInitialSources(studentName: string, course: string, batch: string)
     {
       id: "source-lecture",
       title: `${course} lecture notes`,
-      summary: `Key definitions, formulas, and examples covered in today's class.`,
+      summary: "Key definitions, formulas, and examples covered in today's class.",
       type: "Notes",
       selected: true,
     },
@@ -304,14 +304,16 @@ export default function StudentAiStudyAssistancePage() {
         },
       });
       setStatus(error instanceof Error ? error.message : "Assistant fallback used");
-      toast.error("Using offline fallback — start the backend for live AI.");
+      toast.error("Using offline fallback. Start the backend for live AI.");
     } finally {
       setSending(false);
     }
   };
 
   return (
-    <div className="page-shell min-w-0">
+    <div className="page-shell relative isolate min-w-0 overflow-hidden pb-6">
+      <div className="pointer-events-none absolute inset-x-0 top-0 -z-10 h-64 bg-[radial-gradient(circle_at_top_left,rgba(59,130,246,0.12),transparent_35%),radial-gradient(circle_at_top_right,rgba(16,185,129,0.10),transparent_32%),linear-gradient(180deg,rgba(255,255,255,0.7),transparent)] dark:bg-[radial-gradient(circle_at_top_left,rgba(59,130,246,0.18),transparent_35%),radial-gradient(circle_at_top_right,rgba(16,185,129,0.12),transparent_32%),linear-gradient(180deg,rgba(15,23,42,0.18),transparent)]" />
+
       <PageHeader
         hideTitle
         title="AI Study Assistant"
@@ -319,7 +321,7 @@ export default function StudentAiStudyAssistancePage() {
         actions={
           <div className="flex flex-wrap gap-2">
             <Button type="button" size="sm" onClick={() => handleSend(studioPrompt(selectedStudio))} disabled={sending}>
-              {sending ? "Generating…" : "Generate"}
+              {sending ? "Generating..." : "Generate"}
             </Button>
             <Button
               type="button"
@@ -336,7 +338,7 @@ export default function StudentAiStudyAssistancePage() {
         }
       />
 
-      <div className="flex flex-wrap gap-3 rounded-xl border bg-muted/40 p-3 text-sm">
+      <div className="flex flex-wrap gap-3 rounded-2xl border border-border/60 bg-background/70 p-4 text-sm shadow-sm backdrop-blur-sm">
         <Badge variant="secondary" className="rounded-full">
           {profile?.course ?? "Your course"}
         </Badge>
@@ -346,12 +348,13 @@ export default function StudentAiStudyAssistancePage() {
         <span className="text-muted-foreground">{status}</span>
       </div>
 
-      <div className="grid min-w-0 grid-cols-1 gap-4 lg:grid-cols-12 lg:gap-5">
-        <Card className="glass-card min-w-0 overflow-hidden border lg:col-span-3 lg:max-h-[calc(100vh-14rem)] lg:overflow-y-auto">
-          <CardHeader className="space-y-3 border-b">
+      <div className="grid min-w-0 grid-cols-1 gap-4 xl:grid-cols-[320px_minmax(0,1fr)_340px] xl:gap-5">
+        <Card className="glass-card min-w-0 overflow-hidden rounded-[1.75rem] border border-border/60 bg-card/85 shadow-[0_20px_60px_-40px_rgba(15,23,42,0.45)] backdrop-blur-md xl:sticky xl:top-6 xl:max-h-[calc(100vh-11rem)] xl:overflow-y-auto">
+          <CardHeader className="space-y-4 border-b border-border/60 bg-background/50">
             <div className="flex items-center justify-between gap-3">
               <div>
-                <CardTitle className="text-xl">Sources</CardTitle>
+                <p className="text-xs font-medium uppercase tracking-[0.18em] text-muted-foreground">Source library</p>
+                <CardTitle className="mt-1 text-xl">Sources</CardTitle>
                 <CardDescription>Pick the notes, files, and lessons the AI should use.</CardDescription>
               </div>
               <Button variant="ghost" size="icon" aria-label="Sources panel" disabled title="Panel layout is fixed in this view">
@@ -362,21 +365,22 @@ export default function StudentAiStudyAssistancePage() {
             <div className="space-y-3">
               <Button
                 variant="outline"
-                className="w-full justify-center rounded-2xl border-dashed"
+                className="w-full justify-center rounded-2xl border-dashed bg-background/70"
                 onClick={() => newSourceInputRef.current?.focus()}
               >
                 <Plus className="mr-2 h-4 w-4" />
                 Add sources
               </Button>
-              <div className="rounded-[1.5rem] border bg-background/80 p-4">
-                <p className="text-sm text-muted-foreground">Add a note or topic as a source</p>
+
+              <div className="rounded-[1.5rem] border border-border/60 bg-background/80 p-4 shadow-sm">
+                <p className="text-sm font-medium">Add a note or topic as a source</p>
                 <div className="mt-3 flex gap-2">
                   <Input
                     ref={newSourceInputRef}
                     value={newSource}
                     onChange={(event) => setNewSource(event.target.value)}
                     placeholder="Paste a topic, note, or URL"
-                    className="h-11 rounded-2xl"
+                    className="h-11 rounded-2xl bg-background/90"
                     onKeyDown={(event) => {
                       if (event.key === "Enter") {
                         event.preventDefault();
@@ -389,6 +393,19 @@ export default function StudentAiStudyAssistancePage() {
                   </Button>
                 </div>
               </div>
+
+              <div className="rounded-[1.5rem] border border-border/60 bg-background/80 p-3 shadow-sm">
+                <label className="mb-2 block text-[11px] font-medium uppercase tracking-[0.18em] text-muted-foreground">
+                  Filter sources
+                </label>
+                <Input
+                  value={sourceSearch}
+                  onChange={(event) => setSourceSearch(event.target.value)}
+                  placeholder="Search notes, files, or source types"
+                  className="h-11 rounded-2xl bg-background/90"
+                />
+              </div>
+
               <div className="flex items-center justify-between text-sm">
                 <button className="font-medium text-foreground" onClick={selectAllSources}>
                   Select all
@@ -408,13 +425,18 @@ export default function StudentAiStudyAssistancePage() {
                 aria-pressed={source.selected}
                 onClick={() => toggleSource(source.id)}
                 className={cn(
-                  "group flex w-full items-start gap-3 rounded-2xl border p-3 text-left transition-all",
+                  "group flex w-full items-start gap-3 rounded-2xl border p-3 text-left transition-all duration-200",
                   source.selected
                     ? "border-primary/30 bg-primary/5 shadow-sm"
-                    : "border-border/60 bg-background/70 hover:border-primary/20 hover:bg-muted/50",
+                    : "border-border/60 bg-background/70 hover:-translate-y-0.5 hover:border-primary/20 hover:bg-muted/50",
                 )}
               >
-                <div className={cn("mt-0.5 flex h-9 w-9 items-center justify-center rounded-xl", source.selected ? "bg-primary text-primary-foreground" : "bg-muted text-muted-foreground")}>
+                <div
+                  className={cn(
+                    "mt-0.5 flex h-9 w-9 items-center justify-center rounded-xl",
+                    source.selected ? "bg-primary text-primary-foreground" : "bg-muted text-muted-foreground",
+                  )}
+                >
                   <FileText className="h-4 w-4" />
                 </div>
                 <div className="min-w-0 flex-1">
@@ -426,7 +448,12 @@ export default function StudentAiStudyAssistancePage() {
                   </div>
                   <p className="mt-1 line-clamp-2 text-sm text-muted-foreground">{source.summary}</p>
                 </div>
-                <div className={cn("mt-1 flex h-5 w-5 items-center justify-center rounded-full border", source.selected ? "border-primary bg-primary text-primary-foreground" : "border-border bg-background")}>
+                <div
+                  className={cn(
+                    "mt-1 flex h-5 w-5 items-center justify-center rounded-full border",
+                    source.selected ? "border-primary bg-primary text-primary-foreground" : "border-border bg-background",
+                  )}
+                >
                   <span className={cn("h-2.5 w-2.5 rounded-full", source.selected ? "bg-primary-foreground" : "bg-transparent")} />
                 </div>
               </button>
@@ -434,11 +461,12 @@ export default function StudentAiStudyAssistancePage() {
           </CardContent>
         </Card>
 
-        <Card className="glass-card flex min-w-0 flex-col overflow-hidden border lg:col-span-6 lg:max-h-[calc(100vh-14rem)]">
-          <CardHeader className="shrink-0 border-b">
+        <Card className="glass-card flex min-w-0 flex-col overflow-hidden rounded-[1.75rem] border border-border/60 bg-card/88 shadow-[0_20px_60px_-40px_rgba(15,23,42,0.45)] backdrop-blur-md xl:max-h-[calc(100vh-11rem)]">
+          <CardHeader className="shrink-0 border-b border-border/60 bg-background/50">
             <div className="flex items-center justify-between gap-3">
               <div>
-                <CardTitle className="text-lg">Chat</CardTitle>
+                <p className="text-xs font-medium uppercase tracking-[0.18em] text-muted-foreground">Conversation</p>
+                <CardTitle className="mt-1 text-lg">Chat</CardTitle>
                 <CardDescription>Ask a question, request a summary, or generate a study asset.</CardDescription>
               </div>
               <div className="flex items-center gap-2">
@@ -467,9 +495,9 @@ export default function StudentAiStudyAssistancePage() {
           </CardHeader>
 
           <CardContent className="flex min-h-0 flex-1 flex-col gap-4 overflow-hidden p-4">
-            <div className="shrink-0 flex items-start justify-between gap-4 rounded-2xl border border-dashed bg-background/75 p-4">
+            <div className="shrink-0 flex items-start justify-between gap-4 rounded-[1.5rem] border border-dashed border-border/60 bg-background/75 p-4 shadow-sm">
               <div className="flex items-start gap-3">
-                <div className="mt-0.5 flex h-11 w-11 items-center justify-center rounded-2xl bg-primary/10 text-primary">
+                <div className="mt-0.5 flex h-11 w-11 items-center justify-center rounded-2xl bg-primary/10 text-primary shadow-inner">
                   <Bot className="h-5 w-5" />
                 </div>
                 <div>
@@ -482,7 +510,7 @@ export default function StudentAiStudyAssistancePage() {
               <Button
                 type="button"
                 variant="outline"
-                className="rounded-full"
+                className="rounded-full bg-background/80"
                 onClick={() => toast.info(`Studio mode: ${selectedStudioOption.label}`)}
               >
                 <PlayCircle className="mr-2 h-4 w-4" />
@@ -491,7 +519,7 @@ export default function StudentAiStudyAssistancePage() {
             </div>
 
             {lastResponse ? (
-              <div className="shrink-0 rounded-2xl border bg-muted/40 p-4">
+              <div className="shrink-0 rounded-[1.5rem] border border-border/60 bg-muted/35 p-4 shadow-sm">
                 <div className="flex items-center justify-between gap-4">
                   <div>
                     <p className="text-xs uppercase tracking-[0.18em] text-muted-foreground">Latest AI output</p>
@@ -517,7 +545,7 @@ export default function StudentAiStudyAssistancePage() {
                 {lastResponse.studySteps?.length ? (
                   <div className="mt-4 grid gap-2 sm:grid-cols-3">
                     {lastResponse.studySteps.map((step, index) => (
-                      <div key={step} className="rounded-2xl border bg-background/80 p-3">
+                      <div key={step} className="rounded-2xl border border-border/60 bg-background/80 p-3">
                         <p className="text-[11px] uppercase tracking-[0.18em] text-muted-foreground">Step {index + 1}</p>
                         <p className="mt-2 text-sm font-medium">{step}</p>
                       </div>
@@ -527,12 +555,12 @@ export default function StudentAiStudyAssistancePage() {
               </div>
             ) : null}
 
-            <div className="min-h-0 flex-1 space-y-3 overflow-y-auto pr-1">
+            <div className="min-h-0 flex-1 space-y-3 overflow-y-auto pr-1 scrollbar-thin">
               {messages.map((chat) => (
                 <div
                   key={chat.id}
                   className={cn(
-                    "max-w-[92%] rounded-[1.5rem] border px-4 py-3",
+                    "max-w-[92%] rounded-[1.5rem] border px-4 py-3 shadow-sm",
                     chat.role === "user"
                       ? "ml-auto border-primary/20 bg-primary text-primary-foreground"
                       : "border-border/70 bg-background/85",
@@ -556,23 +584,18 @@ export default function StudentAiStudyAssistancePage() {
               ))}
             </div>
 
-            <div className="shrink-0 rounded-2xl border bg-background/85 p-4">
+            <div className="shrink-0 rounded-[1.5rem] border border-border/60 bg-background/85 p-4 shadow-sm">
               <p className="text-xs uppercase tracking-[0.18em] text-muted-foreground">Quick prompts</p>
               <div className="mt-3 flex flex-wrap gap-2">
-                {["Explain this simply", "Quiz me", "Create flashcards", "Summarize the lesson"].map((prompt) => (
-                  <Button
-                    key={prompt}
-                    variant="secondary"
-                    className="rounded-full"
-                    onClick={() => setMessage(prompt)}
-                  >
+                {quickPrompts.map((prompt) => (
+                  <Button key={prompt} variant="secondary" className="rounded-full" onClick={() => setMessage(prompt)}>
                     {prompt}
                   </Button>
                 ))}
               </div>
             </div>
 
-            <div className="shrink-0 rounded-2xl border bg-background/85 p-3">
+            <div className="shrink-0 rounded-[1.5rem] border border-border/60 bg-background/85 p-3 shadow-sm">
               <div className="flex items-end gap-3">
                 <div className="flex-1">
                   <label className="mb-2 block text-xs uppercase tracking-[0.18em] text-muted-foreground">
@@ -590,14 +613,10 @@ export default function StudentAiStudyAssistancePage() {
                     rows={3}
                     aria-label="Message for study assistant"
                     placeholder="Ask for an explanation, a quiz, a summary, or a study asset..."
-                    className="min-h-24 rounded-[1.25rem] resize-none"
+                    className="min-h-24 resize-none rounded-[1.25rem]"
                   />
                 </div>
-                <Button
-                  onClick={() => handleSend()}
-                  disabled={sending}
-                  className="h-12 rounded-full px-5"
-                >
+                <Button onClick={() => handleSend()} disabled={sending} className="h-12 rounded-full px-5 shadow-sm">
                   <Send className="mr-2 h-4 w-4" />
                   Send
                 </Button>
@@ -611,11 +630,12 @@ export default function StudentAiStudyAssistancePage() {
           </CardContent>
         </Card>
 
-        <Card className="glass-card min-w-0 overflow-hidden border lg:col-span-3 lg:max-h-[calc(100vh-14rem)] lg:overflow-y-auto">
-          <CardHeader className="border-b">
+        <Card className="glass-card min-w-0 overflow-hidden rounded-[1.75rem] border border-border/60 bg-card/85 shadow-[0_20px_60px_-40px_rgba(15,23,42,0.45)] backdrop-blur-md xl:sticky xl:top-6 xl:max-h-[calc(100vh-11rem)] xl:overflow-y-auto">
+          <CardHeader className="border-b border-border/60 bg-background/50">
             <div className="flex items-center justify-between gap-3">
               <div>
-                <CardTitle className="text-lg">Studio</CardTitle>
+                <p className="text-xs font-medium uppercase tracking-[0.18em] text-muted-foreground">Output studio</p>
+                <CardTitle className="mt-1 text-lg">Studio</CardTitle>
                 <CardDescription>Transform the same lesson into different learning formats.</CardDescription>
               </div>
               <Button variant="ghost" size="icon" aria-label="Studio panel" disabled title="Studio panel is always visible">
@@ -625,7 +645,7 @@ export default function StudentAiStudyAssistancePage() {
           </CardHeader>
 
           <CardContent className="space-y-4 p-4">
-            <div className="grid gap-3 sm:grid-cols-2">
+            <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-1">
               {studioOptions.map((option) => {
                 const Icon = option.icon;
                 const active = option.id === selectedStudio;
@@ -639,7 +659,7 @@ export default function StudentAiStudyAssistancePage() {
                       toast.info(`${option.label} mode selected`);
                     }}
                     className={cn(
-                      "group rounded-[1.35rem] border p-3 text-left transition-all",
+                      "group rounded-[1.35rem] border p-3 text-left transition-all duration-200",
                       active
                         ? "border-primary/30 bg-primary/5 shadow-sm"
                         : "border-border/70 bg-background/80 hover:-translate-y-0.5 hover:border-primary/20 hover:bg-muted/40",
@@ -662,7 +682,7 @@ export default function StudentAiStudyAssistancePage() {
             </div>
 
             {lastResponse?.studioPreview ? (
-              <div className="rounded-[1.35rem] border bg-background/80 p-4">
+              <div className="rounded-[1.35rem] border border-border/60 bg-background/80 p-4 shadow-sm">
                 <p className="text-xs uppercase tracking-[0.18em] text-muted-foreground">Current output preview</p>
                 <h3 className="mt-2 text-lg font-semibold">{lastResponse.studioPreview.title}</h3>
                 <div className="mt-3 space-y-2">
@@ -676,7 +696,7 @@ export default function StudentAiStudyAssistancePage() {
               </div>
             ) : null}
 
-            <div className="rounded-[1.35rem] border bg-background/80 p-4">
+            <div className="rounded-[1.35rem] border border-border/60 bg-background/80 p-4 shadow-sm">
               <p className="text-xs uppercase tracking-[0.18em] text-muted-foreground">Assistant context</p>
               <div className="mt-3 flex flex-wrap gap-2">
                 {selectedSources.map((source) => (

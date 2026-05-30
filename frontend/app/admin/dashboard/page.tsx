@@ -15,7 +15,6 @@ import {
   UserCog,
   CreditCard,
   BookOpen,
-  ShoppingBag,
   BarChart3,
 } from "lucide-react";
 import { Area, AreaChart, CartesianGrid, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
@@ -58,12 +57,6 @@ const moduleCards = [
     icon: Users,
   },
   {
-    title: "Marketplace",
-    description: "Create courses and sell them directly to students.",
-    href: "/admin/marketplace",
-    icon: ShoppingBag,
-  },
-  {
     title: "Certificates",
     description: "Issue, preview, and share completion certificates.",
     href: "/admin/certificates",
@@ -87,15 +80,6 @@ const moduleCards = [
     href: "/admin/attendance",
     icon: CalendarDays,
   },
-];
-
-const quickActions = [
-  { title: "Create Batch", description: "Set up a new cohort and schedule.", icon: GraduationCap, href: "/admin/batches" },
-  { title: "Add Faculty", description: "Register a new instructor profile.", icon: UserCog, href: "/admin/faculty" },
-  { title: "Add Student", description: "Enroll a student with parent mapping.", icon: Users, href: "/admin/students" },
-  { title: "Create Course", description: "Open a new course for marketplace sales.", icon: BookOpen, href: "/admin/courses" },
-  { title: "Issue Certificate", description: "Generate completion proof for graduates.", icon: Award, href: "/admin/certificates" },
-  { title: "Send Announcement", description: "Notify every role with one post.", icon: Megaphone, href: "/admin/announcements" },
 ];
 
 export default function AdminDashboardPage() {
@@ -290,64 +274,43 @@ export default function AdminDashboardPage() {
         </Card>
       </div>
 
-      <div className="grid gap-6 xl:grid-cols-[1.35fr_1fr]">
-        <Card className="glass-card rounded-[1.6rem]">
-          <CardHeader className="flex flex-row items-start justify-between gap-4">
-            <div>
-              <CardTitle className="text-xl">Admin module launchpad</CardTitle>
-              <CardDescription>Direct access to every major area in the notebook plan.</CardDescription>
+      <div className="grid gap-6">
+        <Card className="overflow-hidden rounded-[2rem] border border-border/70 bg-card/95 shadow-[0_24px_80px_rgba(15,23,42,0.14)]">
+          <CardHeader className="flex flex-row items-start justify-between gap-4 border-b border-border/70 bg-gradient-to-b from-muted/35 to-transparent pb-5">
+            <div className="space-y-1">
+              <CardTitle className="text-xl text-foreground">Admin module launchpad</CardTitle>
+              <CardDescription className="max-w-xl text-muted-foreground">
+                Direct access to every major area in the notebook plan.
+              </CardDescription>
             </div>
-            <Badge variant="outline" className="rounded-full">
-              8 modules
+            <Badge
+              variant="outline"
+              className="rounded-full border-border/70 bg-background/70 px-3 py-1 text-[11px] font-semibold text-foreground shadow-sm"
+            >
+              7 modules
             </Badge>
           </CardHeader>
-          <CardContent className="grid gap-4 md:grid-cols-2">
+          <CardContent className="grid gap-3 p-4 md:grid-cols-2 md:p-5">
             {moduleCards.map((module) => {
               const Icon = module.icon;
               return (
                 <button
                   key={module.title}
                   onClick={() => openRoute(module.href)}
-                  className="group rounded-[1.4rem] border border-border/60 bg-background/75 p-4 text-left transition-all hover:-translate-y-0.5 hover:shadow-lg"
+                  className="group relative overflow-hidden rounded-[1.35rem] border border-border/70 bg-background/70 p-4 text-left transition-all duration-300 hover:-translate-y-0.5 hover:border-primary/40 hover:bg-background hover:shadow-[0_12px_36px_rgba(15,23,42,0.12)]"
                 >
-                  <div className="flex items-start justify-between gap-4">
+                  <div className="absolute inset-0 bg-gradient-to-br from-primary/10 via-transparent to-fuchsia-500/10 opacity-0 transition-opacity duration-300 group-hover:opacity-100" />
+                  <div className="relative flex items-start justify-between gap-4">
                     <div className="space-y-3">
-                      <span className="flex h-11 w-11 items-center justify-center rounded-2xl bg-primary/10 text-primary">
-                        <Icon className="h-5 w-5" />
+                      <span className="flex h-9 w-9 items-center justify-center rounded-2xl border border-border/70 bg-primary/10 text-primary shadow-sm">
+                        <Icon className="h-4 w-4" />
                       </span>
                       <div>
-                        <p className="font-semibold">{module.title}</p>
-                        <p className="mt-1 text-sm text-muted-foreground">{module.description}</p>
+                        <p className="text-sm font-semibold text-foreground">{module.title}</p>
+                        <p className="mt-1 max-w-[24ch] text-xs leading-5 text-muted-foreground">{module.description}</p>
                       </div>
                     </div>
-                    <ArrowUpRight className="h-4 w-4 text-muted-foreground transition-transform group-hover:-translate-y-0.5 group-hover:translate-x-0.5" />
-                  </div>
-                </button>
-              );
-            })}
-          </CardContent>
-        </Card>
-
-        <Card className="glass-card rounded-[1.6rem]">
-          <CardHeader>
-            <CardTitle className="text-xl">Quick actions</CardTitle>
-            <CardDescription>Fast admin workflows inspired by the handwritten plan.</CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-3">
-            {quickActions.map((action) => {
-              const Icon = action.icon;
-              return (
-                <button
-                  key={action.title}
-                  onClick={() => openRoute(action.href)}
-                  className="flex w-full items-center gap-3 rounded-2xl border bg-background/70 p-4 text-left transition-all hover:-translate-y-0.5 hover:border-primary/40 hover:shadow-md"
-                >
-                  <span className="flex h-11 w-11 items-center justify-center rounded-2xl bg-muted">
-                    <Icon className="h-5 w-5 text-primary" />
-                  </span>
-                  <div className="min-w-0 flex-1">
-                    <p className="font-medium">{action.title}</p>
-                    <p className="text-sm text-muted-foreground">{action.description}</p>
+                    <ArrowUpRight className="h-4 w-4 shrink-0 text-muted-foreground transition-transform duration-300 group-hover:-translate-y-0.5 group-hover:translate-x-0.5 group-hover:text-foreground" />
                   </div>
                 </button>
               );

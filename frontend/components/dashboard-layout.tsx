@@ -55,7 +55,6 @@ import { cn } from "@/lib/utils";
 import { BRAND_NAME } from "@/lib/brand";
 import { isDemoMode } from "@/lib/demo";
 import { routes } from "@/lib/routes";
-import { DemoBanner } from "@/components/app/demo-banner";
 import { LoadingShell } from "@/components/app/loading-shell";
 
 type NavItem = {
@@ -482,7 +481,6 @@ export function DashboardLayout({ children }: { children: ReactNode }) {
         </header>
 
         <main className="flex-1 overflow-y-auto overflow-x-hidden">
-          <DemoBanner />
           <div className="mx-auto w-full max-w-7xl px-4 py-4 sm:px-6 sm:py-6 lg:px-8">
             {children}
           </div>

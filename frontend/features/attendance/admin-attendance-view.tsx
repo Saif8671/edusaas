@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useMemo, useRef, useState, type ChangeEvent } from "react";
 import {
   ArrowRight,
   Building2,
@@ -42,7 +42,7 @@ import { Progress } from "@/components/ui/progress";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { cn } from "@/lib/utils";
 import { toast } from "@/lib/toast";
-import { adminBatchCards, attendanceOverview, facultyAttendanceRows, facultyTrend, leaveRequests, monthlyTrend, riskStudents, studentAttendanceRows } from "./constants";
+import { adminBatchCards, facultyAttendanceRows, facultyTrend, leaveRequests, monthlyTrend, riskStudents, studentAttendanceRows } from "./constants";
 import {
   AttendanceChoice,
   AttendanceLegend,
@@ -64,9 +64,16 @@ export function AdminAttendanceView({ title, subtitle, actionLabel, secondaryAct
   const totalStudents = useAppStore((state) => state.students.length);
   const batches = useAppStore((state) => state.batches);
   const students = useAppStore((state) => state.students);
+  const attendanceSessions = useAppStore((state) => state.attendanceSessions);
+  const saveAttendanceSession = useAppStore((state) => state.saveAttendanceSession);
   const addNotification = useAppStore((state) => state.addNotification);
   const [calendarDate, setCalendarDate] = useState(() => new Date("2026-05-30T12:00:00+05:30"));
+  const [attendanceRows, setAttendanceRows] = useState(() =>
+    studentAttendanceRows.map((row) => ({ ...row })),
+  );
   const [sendingAlertFor, setSendingAlertFor] = useState<string | null>(null);
+  const [savingAttendance, setSavingAttendance] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
   const selectedBatch = batches.find((batch) => batch.id === "QC-2026") ?? batches[0];
 
   const handleNotifyParent = async (rollNo: string) => {
@@ -101,6 +108,108 @@ export function AdminAttendanceView({ title, subtitle, actionLabel, secondaryAct
     } finally {
       setSendingAlertFor(null);
     }
+  };
+
+  const updateRowStatus = (rollNo: string, status: "present" | "absent" | "late") => {
+    setAttendanceRows((current) => current.map((row) => (row.rollNo === rollNo ? { ...row, status, checked: status === "present" } : row)));
+  };
+
+  const markAllPresent = () => {
+    setAttendanceRows((current) => current.map((row) => ({ ...row, status: "present", checked: true })));
+    addNotification("Attendance updated", "All rows were marked present in the current session.");
+    toast.success("All students marked present");
+  };
+
+  const applyLastSession = () => {
+    const lastSession = attendanceSessions[0];
+
+    if (!lastSession) {
+      addNotification("No previous session", "There is no previous attendance snapshot to copy.");
+      toast.info("No previous attendance session found");
+      return;
+    }
+
+    setAttendanceRows((current) =>
+      current.map((row) => {
+        const entry = lastSession.entries.find((item) => item.rollNo === row.rollNo);
+        return entry ? { ...row, status: entry.status, checked: entry.status === "present" } : row;
+      }),
+    );
+    addNotification("Attendance copied", `Loaded the previous session from ${lastSession.date}.`);
+    toast.success("Previous attendance copied");
+  };
+
+  const exportAttendanceReport = () => {
+    const csvRows = [
+      ["Roll No", "Name", "Status"],
+      ...attendanceRows.map((row) => [row.rollNo, row.name, row.status]),
+    ];
+    const csv = csvRows.map((row) => row.join(",")).join("\n");
+    const blob = new Blob([csv], { type: "text/csv;charset=utf-8" });
+    const url = URL.createObjectURL(blob);
+    const anchor = document.createElement("a");
+    anchor.href = url;
+    anchor.download = `attendance-${selectedBatch?.id ?? "batch"}-${calendarDate.toISOString().slice(0, 10)}.csv`;
+    anchor.click();
+    URL.revokeObjectURL(url);
+    addNotification("Attendance exported", "A CSV report was downloaded from the session snapshot.");
+    toast.success("Attendance report downloaded");
+  };
+
+  const saveAttendance = () => {
+    setSavingAttendance(true);
+    try {
+      saveAttendanceSession({
+        batchId: selectedBatch?.id ?? "QC-2026",
+        mode: "admin",
+        date: calendarDate.toISOString().slice(0, 10),
+        entries: attendanceRows.map((row) => ({
+          rollNo: row.rollNo,
+          name: row.name,
+          status: row.status === "holiday" ? "late" : (row.status as "present" | "absent" | "late"),
+        })),
+      });
+      addNotification("Attendance saved", `Attendance for ${selectedBatch?.id ?? "QC-2026"} was recorded.`);
+      toast.success("Attendance saved");
+    } finally {
+      setSavingAttendance(false);
+    }
+  };
+
+  const handleBulkUpload = async (event: ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    event.target.value = "";
+
+    if (!file) return;
+
+    const isCsv = file.name.toLowerCase().endsWith(".csv") || file.type.includes("csv");
+    if (!isCsv) {
+      addNotification("Upload received", `${file.name} was selected. CSV parsing is enabled in this demo flow.`);
+      toast.info("CSV parsing is supported in this demo");
+      return;
+    }
+
+    const text = await file.text();
+    const nextRows = [...attendanceRows];
+
+    text
+      .split(/\r?\n/)
+      .map((line) => line.trim())
+      .filter(Boolean)
+      .forEach((line, index) => {
+        if (index === 0 && /roll/i.test(line) && /status/i.test(line)) return;
+        const [rollNo, statusRaw] = line.split(",").map((value) => value.trim());
+        if (!rollNo || !statusRaw) return;
+        const status = (statusRaw.toLowerCase() as "present" | "absent" | "late") || "present";
+        const rowIndex = nextRows.findIndex((row) => row.rollNo === rollNo);
+        if (rowIndex >= 0 && (status === "present" || status === "absent" || status === "late")) {
+          nextRows[rowIndex] = { ...nextRows[rowIndex], status, checked: status === "present" };
+        }
+      });
+
+    setAttendanceRows(nextRows);
+    addNotification("Attendance imported", `${file.name} updated the current session snapshot.`);
+    toast.success("Attendance import applied");
   };
 
   const metrics: SummaryMetric[] = [
@@ -140,25 +249,33 @@ export function AdminAttendanceView({ title, subtitle, actionLabel, secondaryAct
 
   return (
     <div className="page-shell min-w-0">
+      <input ref={fileInputRef} type="file" accept=".csv,text/csv" className="hidden" onChange={handleBulkUpload} />
         <section className="page-section rounded-2xl border bg-card p-4 shadow-sm sm:p-5">
           <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
-            <p className="max-w-2xl text-sm text-muted-foreground">{subtitle}</p>
+            <div className="space-y-1">
+              <p className="text-xs font-semibold uppercase tracking-[0.2em] text-primary/70">{title}</p>
+              <p className="max-w-2xl text-sm text-muted-foreground">{subtitle}</p>
+            </div>
             <div className="flex flex-wrap items-center gap-2">
-              <Button variant="outline" className="h-10 rounded-lg">
+              <Button variant="outline" className="h-10 rounded-lg" onClick={() => toast.info(`Session date: ${formatShortDate(calendarDate)}`)}>
                 <CalendarDays className="h-4 w-4" />
                 {formatShortDate(calendarDate)}
                 <ChevronDown className="h-4 w-4" />
               </Button>
-              <Button className="h-10 rounded-lg px-4">
+              <Button className="h-10 rounded-lg px-4" onClick={exportAttendanceReport}>
                 <Download className="h-4 w-4" />
                 {tertiaryActionLabel}
+              </Button>
+              <Button variant="outline" className="h-10 rounded-lg px-4" onClick={() => fileInputRef.current?.click()}>
+                <Upload className="h-4 w-4" />
+                {secondaryActionLabel}
               </Button>
             </div>
           </div>
 
           <div className="mt-5 flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
             <ModeTabs mode="admin" />
-            <Button variant="ghost" size="sm" className="h-9 rounded-lg text-primary">
+            <Button variant="ghost" size="sm" className="h-9 rounded-lg text-primary" onClick={() => toast.info("Attendance guide opened in the demo panel.")}>
               <Info className="h-4 w-4" />
               Attendance Guide
             </Button>
@@ -173,8 +290,8 @@ export function AdminAttendanceView({ title, subtitle, actionLabel, secondaryAct
 
         <Card className="attendance-panel">
           <CardHeader className="px-4 pb-3 pt-4 sm:px-5 sm:pt-5">
-            <SectionHeader title="Batch overview" actionLabel="View all batches" />
-          </CardHeader>
+              <SectionHeader title="Batch overview" actionLabel="View all batches" onAction={() => toast.info("All batches are already visible in this demo view.")} />
+            </CardHeader>
           <CardContent className="grid gap-3 px-4 pb-4 sm:grid-cols-2 sm:px-5 sm:pb-5 xl:grid-cols-4">
             {adminBatchCards.map((batch) => (
               <BatchMiniCard key={batch.name} batch={batch} />
@@ -185,17 +302,17 @@ export function AdminAttendanceView({ title, subtitle, actionLabel, secondaryAct
         <div className="grid gap-6 lg:grid-cols-12">
           <Card className="attendance-panel lg:col-span-8">
             <CardHeader className="flex flex-col gap-3 px-4 pb-3 pt-4 sm:flex-row sm:items-center sm:justify-between sm:px-5 sm:pt-5">
-              <SectionHeader title={`Take attendance — ${selectedBatch?.id ?? "QC-2026"}`} />
-              <Button variant="outline" size="sm" className="h-9 shrink-0 rounded-lg">
+            <SectionHeader title={`Take attendance — ${selectedBatch?.id ?? "QC-2026"}`} />
+              <Button variant="outline" size="sm" className="h-9 shrink-0 rounded-lg" onClick={() => fileInputRef.current?.click()}>
                 <ChevronDown className="h-4 w-4" />
                 {secondaryActionLabel}
               </Button>
             </CardHeader>
             <AttendanceTableShell
               footer={
-                <Button className="h-10 w-full rounded-lg">
+                <Button className="h-10 w-full rounded-lg" onClick={saveAttendance} disabled={savingAttendance}>
                   <ShieldCheck className="h-4 w-4" />
-                  Save attendance
+                  {savingAttendance ? "Saving..." : actionLabel}
                 </Button>
               }
             >
@@ -211,19 +328,31 @@ export function AdminAttendanceView({ title, subtitle, actionLabel, secondaryAct
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {studentAttendanceRows.map((student, index) => (
+                  {attendanceRows.map((student, index) => (
                     <TableRow key={student.rollNo}>
                       <TableCell className="px-3 py-3 text-sm text-muted-foreground">{index + 1}</TableCell>
                       <TableCell className="px-3 py-3 text-sm font-medium">{student.name}</TableCell>
                       <TableCell className="hidden px-3 py-3 text-sm text-muted-foreground sm:table-cell">{student.rollNo}</TableCell>
                       <TableCell className="px-2 py-3 text-center">
-                        <AttendanceChoice status="present" active={student.status === "present"} />
+                        <AttendanceChoice
+                          status="present"
+                          active={student.status === "present"}
+                          onSelect={() => updateRowStatus(student.rollNo, "present")}
+                        />
                       </TableCell>
                       <TableCell className="px-2 py-3 text-center">
-                        <AttendanceChoice status="absent" active={student.status === "absent"} />
+                        <AttendanceChoice
+                          status="absent"
+                          active={student.status === "absent"}
+                          onSelect={() => updateRowStatus(student.rollNo, "absent")}
+                        />
                       </TableCell>
                       <TableCell className="px-2 py-3 text-center">
-                        <AttendanceChoice status="late" active={student.status === "late"} />
+                        <AttendanceChoice
+                          status="late"
+                          active={student.status === "late"}
+                          onSelect={() => updateRowStatus(student.rollNo, "late")}
+                        />
                       </TableCell>
                     </TableRow>
                   ))}
@@ -235,7 +364,7 @@ export function AdminAttendanceView({ title, subtitle, actionLabel, secondaryAct
           <div className="flex flex-col gap-6 lg:col-span-4">
             <Card className="attendance-panel">
               <CardHeader className="px-4 pb-3 pt-4 sm:px-5 sm:pt-5">
-                <SectionHeader title="Students at risk" actionLabel="View all" />
+                <SectionHeader title="Students at risk" actionLabel="View all" onAction={() => toast.info("Risk students are already expanded in this panel.")} />
               </CardHeader>
               <CardContent className="space-y-3 px-4 pb-4 sm:px-5 sm:pb-5">
                 {riskStudents.map((student) => (
@@ -256,10 +385,10 @@ export function AdminAttendanceView({ title, subtitle, actionLabel, secondaryAct
                 <SectionHeader title="Quick actions" />
               </CardHeader>
               <CardContent className="grid grid-cols-2 gap-2 px-4 pb-4 sm:px-5 sm:pb-5">
-                <QuickActionTile label="Bulk upload" helper="CSV / Excel" icon={Upload} tone="bg-violet-500/15 text-violet-600" />
-                <QuickActionTile label="Copy yesterday" helper="Reuse last day" icon={Copy} tone="bg-blue-500/15 text-blue-600" />
-                <QuickActionTile label="Mark all present" helper="Entire class" icon={CheckCheck} tone="bg-emerald-500/15 text-emerald-600" />
-                <QuickActionTile label="Export report" helper="Download" icon={FileDown} tone="bg-orange-500/15 text-orange-600" />
+                <QuickActionTile label="Bulk upload" helper="CSV / Excel" icon={Upload} tone="bg-violet-500/15 text-violet-600" onClick={() => fileInputRef.current?.click()} />
+                <QuickActionTile label="Copy yesterday" helper="Reuse last day" icon={Copy} tone="bg-blue-500/15 text-blue-600" onClick={applyLastSession} />
+                <QuickActionTile label="Mark all present" helper="Entire class" icon={CheckCheck} tone="bg-emerald-500/15 text-emerald-600" onClick={markAllPresent} />
+                <QuickActionTile label="Export report" helper="Download" icon={FileDown} tone="bg-orange-500/15 text-orange-600" onClick={exportAttendanceReport} />
               </CardContent>
             </Card>
           </div>
@@ -321,7 +450,7 @@ export function AdminAttendanceView({ title, subtitle, actionLabel, secondaryAct
         <div className="grid gap-6 lg:grid-cols-12">
           <Card className="attendance-panel lg:col-span-7">
             <CardHeader className="px-4 pb-3 pt-4 sm:px-5 sm:pt-5">
-              <SectionHeader title="Faculty overview" actionLabel="View all" />
+              <SectionHeader title="Faculty overview" actionLabel="View all" onAction={() => toast.info("Faculty details are already visible in this demo view.")} />
             </CardHeader>
             <CardContent className="px-0 pb-0">
               <div className="overflow-x-auto scrollbar-thin">
@@ -383,7 +512,7 @@ export function AdminAttendanceView({ title, subtitle, actionLabel, secondaryAct
 
           <Card className="attendance-panel lg:col-span-12">
             <CardHeader className="px-4 pb-3 pt-4 sm:px-5 sm:pt-5">
-              <SectionHeader title="Leave requests" actionLabel="View all" />
+              <SectionHeader title="Leave requests" actionLabel="View all" onAction={() => toast.info("Leave request actions are available in each row.")} />
             </CardHeader>
             <CardContent className="space-y-3 px-4 pb-4 sm:px-5 sm:pb-5">
               {leaveRequests.map((request) => (

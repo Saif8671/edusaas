@@ -105,19 +105,31 @@ export function BatchMiniCard({ batch }: { batch: BatchCard }) {
   );
 }
 
-export function AttendanceChoice({ status, active }: { status: AttendanceStatus; active?: boolean }) {
+export function AttendanceChoice({
+  status,
+  active,
+  onSelect,
+}: {
+  status: AttendanceStatus;
+  active?: boolean;
+  onSelect?: () => void;
+}) {
   const meta = attendanceStatusMeta[status];
   const Icon = meta.icon;
 
   return (
-    <span
+    <button
+      type="button"
       className={cn(
-        "inline-flex h-6 w-6 items-center justify-center rounded-full border transition",
-        active ? meta.dotClass : "border-border bg-background text-muted-foreground",
+        "inline-flex h-7 w-7 items-center justify-center rounded-full border transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/60",
+        active ? meta.dotClass : "border-border bg-background text-muted-foreground hover:border-primary/40 hover:bg-primary/5",
       )}
+      aria-pressed={active}
+      aria-label={`Mark as ${meta.label}`}
+      onClick={onSelect}
     >
       <Icon className={cn("h-3.5 w-3.5", active ? meta.iconClass : "opacity-40")} />
-    </span>
+    </button>
   );
 }
 
@@ -257,16 +269,19 @@ export function QuickActionTile({
   helper,
   icon: Icon,
   tone,
+  onClick,
 }: {
   label: string;
   helper: string;
   icon: ComponentType<{ className?: string }>;
   tone: string;
+  onClick?: () => void;
 }) {
   return (
     <button
       type="button"
-      className="rounded-xl border border-border/60 bg-muted/30 p-3 text-left transition hover:border-primary/30 hover:bg-card"
+      onClick={onClick}
+      className="rounded-xl border border-border/60 bg-muted/30 p-3 text-left transition hover:border-primary/30 hover:bg-card disabled:cursor-not-allowed disabled:opacity-60"
     >
       <div className={cn("flex h-9 w-9 items-center justify-center rounded-lg", tone)}>
         <Icon className="h-4 w-4" />

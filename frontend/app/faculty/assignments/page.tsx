@@ -2,60 +2,45 @@
 
 import { useMemo, useState } from "react";
 import {
-  ArrowRight,
-  BarChart3,
-  CalendarDays,
   CheckCircle2,
-  CircleAlert,
   CloudUpload,
   Clock3,
   FileText,
   Loader2,
+  Megaphone,
   Plus,
   Search,
-  Send,
+  ShieldAlert,
   Sparkles,
   Trash2,
-  Wand2,
+  UserRoundCheck,
 } from "lucide-react";
-import { useAppStore, type AssignmentData } from "@/lib/store";
+import { useAppStore, type AssignmentData, type AssignmentSubmission, type StudentData } from "@/lib/store";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
-import { Progress } from "@/components/ui/progress";
-import { Separator } from "@/components/ui/separator";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
-import { cn } from "@/lib/utils";
-import { assignmentStatusStyles as statusStyles } from "@/lib/status-styles";
-import { toast } from "@/lib/toast";
-import {
-  assignmentFilters as filters,
-  assignmentStatusIcons as statusIcons,
-  computeAssignmentMetrics,
-  filterAssignments,
-  formatAssignmentDeadline as formatDeadline,
-  getAssignmentState,
-  type AssignmentFilter,
-} from "@/lib/assignments";
+import { Textarea } from "@/components/ui/textarea";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { PageHeader } from "@/components/app/page-header";
-import {
-  buildAssignmentDeadlineHtml,
-  buildAssignmentDeadlineText,
-  deliverNotification,
-} from "@/lib/notifications";
+import { assignmentStatusStyles as statusStyles } from "@/lib/status-styles";
+import { cn } from "@/lib/utils";
+import { toast } from "@/lib/toast";
+import { buildAssignmentFollowUpHtml, buildAssignmentFollowUpText, deliverNotification } from "@/lib/notifications";
+import { assignmentStatusIcons as statusIcons, computeAssignmentMetrics, formatAssignmentDeadline } from "@/lib/assignments";
 
 type AssignmentForm = {
   title: string;
   course: string;
   batch: string;
   deadline: string;
+};
+
+type AttentionItem = {
+  assignment: AssignmentData;
+  student: StudentData;
+  reason: string;
 };
 
 const emptyAssignment: AssignmentForm = {
@@ -65,24 +50,41 @@ const emptyAssignment: AssignmentForm = {
   deadline: "",
 };
 
+function formatSubmissionTime(value: string) {
+  const date = new Date(value.includes("T") ? value : value.replace(" ", "T"));
+  if (Number.isNaN(date.getTime())) return value;
+
+  return new Intl.DateTimeFormat("en-US", {
+    month: "short",
+    day: "numeric",
+    hour: "numeric",
+    minute: "2-digit",
+  }).format(date);
+}
+
+function getDeadlineDate(deadline: string) {
+  const date = new Date(`${deadline}T23:59:59`);
+  return Number.isNaN(date.getTime()) ? null : date;
+}
+
+function isSubmissionLate(submission: AssignmentSubmission, deadline: string) {
+  const deadlineDate = getDeadlineDate(deadline);
+  if (!deadlineDate) return false;
+
+  const submittedAt = new Date(submission.submittedAt.includes("T") ? submission.submittedAt : submission.submittedAt.replace(" ", "T"));
+  if (Number.isNaN(submittedAt.getTime())) return false;
+  return submittedAt > deadlineDate;
+}
+
 export default function FacultyAssignments() {
-  const {
-    assignments,
-    addAssignment,
-    deleteAssignment,
-    reviewAssignmentSubmission,
-    students,
-    batches,
-    courses,
-    addNotification,
-  } = useAppStore();
-  const [activeFilter, setActiveFilter] = useState<AssignmentFilter>("all");
-  const [expandedIds, setExpandedIds] = useState<string[]>(
-    assignments.filter((assignment) => assignment.status !== "Pending").map((assignment) => assignment.id),
-  );
+  const { assignments, addAssignment, deleteAssignment, reviewAssignmentSubmission, students, batches, courses, addNotification } = useAppStore();
   const [form, setForm] = useState<AssignmentForm>(emptyAssignment);
-  const [marksBySubmission, setMarksBySubmission] = useState<Record<string, { marks: string; feedback: string }>>({});
+  const [selectedAssignmentId, setSelectedAssignmentId] = useState<string | null>(null);
+  const [selectedSubmissionId, setSelectedSubmissionId] = useState<string | null>(null);
+  const [aiModalOpen, setAiModalOpen] = useState(false);
+  const [evaluatingSubmissionId, setEvaluatingSubmissionId] = useState<string | null>(null);
   const [sendingReminderFor, setSendingReminderFor] = useState<string | null>(null);
+  const [filterText, setFilterText] = useState("");
 
   const courseOptions = courses.map((course) => course.title);
   const batchOptions = batches.map((batch) => ({
@@ -90,42 +92,74 @@ export default function FacultyAssignments() {
     label: `${batch.name} - ${batch.facultyName}`,
   }));
 
-  const filteredAssignments = useMemo(
-    () => filterAssignments(assignments, activeFilter),
-    [assignments, activeFilter],
-  );
-
   const metrics = useMemo(() => computeAssignmentMetrics(assignments), [assignments]);
 
-  const recentActivity = useMemo(() => {
-    return [...assignments]
-      .sort((left, right) => {
-        const order: Record<AssignmentData["status"], number> = {
-          Reviewed: 0,
-          Submitted: 1,
-          Pending: 2,
-          Late: 3,
-        };
-        return order[left.status] - order[right.status];
-      })
-      .slice(0, 3);
-  }, [assignments]);
+  const visibleAssignments = useMemo(() => {
+    const normalized = filterText.trim().toLowerCase();
+    if (!normalized) return assignments;
 
-  const visibleFilters = filters.map((filter) => {
-    const count =
-      filter.key === "all"
-        ? metrics.totalAssignments
-        : filter.key === "pending"
-          ? metrics.submittedCount
-          : filter.key === "reviewed"
-            ? metrics.reviewedCount
-            : metrics.attentionCount;
+    return assignments.filter((assignment) =>
+      `${assignment.title} ${assignment.course} ${assignment.batch ?? ""} ${assignment.status}`.toLowerCase().includes(normalized),
+    );
+  }, [assignments, filterText]);
 
-    return { ...filter, count };
-  });
+  const pendingReviewAssignments = useMemo(
+    () => assignments.filter((assignment) => assignment.status === "Submitted" && (assignment.submissions?.length ?? 0) > 0),
+    [assignments],
+  );
 
-  const toggleExpanded = (id: string) => {
-    setExpandedIds((current) => (current.includes(id) ? current.filter((value) => value !== id) : [...current, id]));
+  const aiEvaluatedAssignments = useMemo(
+    () => assignments.filter((assignment) => assignment.status === "Reviewed"),
+    [assignments],
+  );
+
+  const attentionItems = useMemo<AttentionItem[]>(() => {
+    return assignments.flatMap((assignment) => {
+      const enrolled = students.filter(
+        (student) => student.course === assignment.course && (!assignment.batch || student.batch === assignment.batch),
+      );
+      const submissions = assignment.submissions ?? [];
+      const deadlineDate = getDeadlineDate(assignment.deadline);
+
+      return enrolled
+        .map((student) => {
+          const submission = submissions.find((item) => item.studentId === student.id);
+          if (!submission) {
+            return {
+              assignment,
+              student,
+              reason: "No submission has been recorded yet.",
+            };
+          }
+
+          if (deadlineDate && isSubmissionLate(submission, assignment.deadline)) {
+            return {
+              assignment,
+              student,
+              reason: "The submission arrived after the deadline.",
+            };
+          }
+
+          return null;
+        })
+        .filter(Boolean) as AttentionItem[];
+    });
+  }, [assignments, students]);
+
+  const selectedAssignment = useMemo(
+    () => assignments.find((assignment) => assignment.id === selectedAssignmentId) ?? null,
+    [assignments, selectedAssignmentId],
+  );
+
+  const selectedSubmission = useMemo(() => {
+    if (!selectedAssignment) return null;
+    return selectedAssignment.submissions?.find((submission) => submission.id === selectedSubmissionId) ?? selectedAssignment.submissions?.[0] ?? null;
+  }, [selectedAssignment, selectedSubmissionId]);
+
+  const openAiModal = (assignment: AssignmentData, submission?: AssignmentSubmission) => {
+    setSelectedAssignmentId(assignment.id);
+    setSelectedSubmissionId(submission?.id ?? assignment.submissions?.[0]?.id ?? null);
+    setAiModalOpen(true);
   };
 
   const createAssignment = () => {
@@ -137,76 +171,112 @@ export default function FacultyAssignments() {
       batch: form.batch || undefined,
       deadline: form.deadline,
     });
-
-    setForm(emptyAssignment);
     addNotification("Assignment created", `${form.title.trim()} was added to ${form.course.trim()}.`);
     toast.success("Assignment created");
+    setForm(emptyAssignment);
   };
 
-  const sendDeadlineReminder = async (assignment: AssignmentData) => {
-    const recipients = students.filter(
-      (student) =>
-        student.course === assignment.course && (!assignment.batch || student.batch === assignment.batch),
-    );
-
-    if (recipients.length === 0) {
-      throw new Error(`No enrolled students found for ${assignment.course}.`);
-    }
-
-    await Promise.all(
-      recipients.map((student) =>
-        deliverNotification({
-          toEmail: student.email,
-          toPhone: student.phone,
-          subject: `Assignment reminder: ${assignment.title}`,
-          html: buildAssignmentDeadlineHtml({
-            title: assignment.title,
-            course: assignment.course,
-            deadline: assignment.deadline,
-          }),
-          text: buildAssignmentDeadlineText({
-            title: assignment.title,
-            course: assignment.course,
-            deadline: assignment.deadline,
-          }),
-          whatsappBody: buildAssignmentDeadlineText({
-            title: assignment.title,
-            course: assignment.course,
-            deadline: assignment.deadline,
-          }),
-        }),
-      ),
-    );
-  };
-
-  const handleSendReminder = async (assignment: AssignmentData) => {
+  const sendFollowUp = async (item: AttentionItem) => {
     try {
-      setSendingReminderFor(assignment.id);
-      await sendDeadlineReminder(assignment);
-      addNotification("Assignment reminder sent", `Deadline reminders were sent for ${assignment.title}.`);
+      setSendingReminderFor(`${item.assignment.id}-${item.student.id}`);
+      await deliverNotification({
+        toPhone: item.student.parentPhone ?? item.student.phone,
+        subject: `Assignment follow-up: ${item.assignment.title}`,
+        html: buildAssignmentFollowUpHtml({
+          assignmentTitle: item.assignment.title,
+          studentName: item.student.name,
+          course: item.assignment.course,
+          batch: item.assignment.batch,
+          dueDate: item.assignment.deadline,
+          reason: item.reason,
+        }),
+        text: buildAssignmentFollowUpText({
+          assignmentTitle: item.assignment.title,
+          studentName: item.student.name,
+          course: item.assignment.course,
+          batch: item.assignment.batch,
+          dueDate: item.assignment.deadline,
+          reason: item.reason,
+        }),
+        whatsappBody: buildAssignmentFollowUpText({
+          assignmentTitle: item.assignment.title,
+          studentName: item.student.name,
+          course: item.assignment.course,
+          batch: item.assignment.batch,
+          dueDate: item.assignment.deadline,
+          reason: item.reason,
+        }),
+      });
+      addNotification("Assignment reminder sent", `${item.student.name} was notified about ${item.assignment.title}.`);
+      toast.success("Assignment reminder sent");
     } catch (error) {
-      addNotification("Assignment reminder failed", error instanceof Error ? error.message : "Unable to send reminder.");
+      const message = error instanceof Error ? error.message : "Unable to send the assignment reminder.";
+      addNotification("Assignment reminder failed", message);
+      toast.error(message);
     } finally {
       setSendingReminderFor(null);
     }
   };
 
-  const handleImport = () => {
-    addNotification("Import Assignment", "Bulk import is not wired yet, but the action target is ready.");
-    toast.info("Bulk import will connect when the backend is ready");
+  const runAiEvaluation = async (assignment: AssignmentData, submission: AssignmentSubmission) => {
+    try {
+      setEvaluatingSubmissionId(submission.id);
+      const response = await fetch("/api/assignments/evaluate", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          assignmentTitle: assignment.title,
+          course: assignment.course,
+          batch: assignment.batch,
+          studentName: submission.studentName,
+          fileName: submission.fileName,
+          notes: submission.notes,
+          submittedAt: submission.submittedAt,
+        }),
+      });
+
+      const data = (await response.json()) as {
+        error?: string;
+        score?: number;
+        grade?: string;
+        feedback?: string;
+        strengths?: string[];
+        improvements?: string[];
+      };
+
+      if (!response.ok) {
+        throw new Error(data.error || "Unable to evaluate the submission.");
+      }
+
+      const marks = `${data.score ?? 0}/100`;
+      reviewAssignmentSubmission(assignment.id, submission.id, marks, data.feedback ?? "AI review completed.");
+      addNotification("AI evaluation complete", `${submission.studentName} received ${data.grade ?? marks} for ${assignment.title}.`);
+      toast.success("AI evaluation saved");
+      setAiModalOpen(false);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "Unable to evaluate the submission.";
+      addNotification("AI evaluation failed", message);
+      toast.error(message);
+    } finally {
+      setEvaluatingSubmissionId(null);
+    }
   };
 
-  const handleAskAI = () => {
-    addNotification("AI Assistant", "AI-assisted review can be connected from this panel.");
-    toast.info("AI review panel — connect backend when ready");
+  const handleImport = () => {
+    addNotification("Import ready", "Use the creator to add assignments for now; file import will connect to the backend next.");
+    toast.info("Assignment import is ready for the next backend pass");
   };
+
+  const sectionTitleClass = "text-lg font-semibold tracking-tight";
 
   return (
     <div className="page-shell space-y-6">
       <PageHeader
         hideTitle
         title="Assignments"
-        description="Create, evaluate, and review assignments with AI assistance."
+        description="Create assignments, evaluate student work with AI, and keep late submissions visible."
         actions={
           <div className="flex flex-wrap gap-2">
             <Button variant="outline" size="sm" onClick={handleImport}>
@@ -223,382 +293,453 @@ export default function FacultyAssignments() {
           </div>
         }
       />
-      <section className="grid gap-6 xl:grid-cols-[1fr_320px]">
-        <div className="space-y-5">
-          <Card id="assignment-creator" className="glass-card">
-            <CardHeader className="pb-3">
-              <CardTitle className="text-base">Create assignment</CardTitle>
-              <CardDescription>Title, course, batch, and due date</CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-                <Input
-                  value={form.title}
-                  onChange={(event) => setForm((current) => ({ ...current, title: event.target.value }))}
-                  placeholder="Assignment title"
-                  className="h-10 rounded-lg sm:col-span-2 lg:col-span-4"
-                />
 
-                <Select
-                  value={form.course}
-                  onValueChange={(value) => setForm((current) => ({ ...current, course: value }))}
-                >
-                  <SelectTrigger className="h-10 w-full rounded-lg">
-                    <SelectValue placeholder="Course" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {courseOptions.map((course) => (
-                      <SelectItem key={course} value={course}>
-                        {course}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-
-                <Select
-                  value={form.batch}
-                  onValueChange={(value) => setForm((current) => ({ ...current, batch: value }))}
-                >
-                  <SelectTrigger className="h-10 w-full rounded-lg">
-                    <SelectValue placeholder="Batch" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {batchOptions.map((batch) => (
-                      <SelectItem key={batch.value} value={batch.value}>
-                        {batch.label}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-
-                <Input
-                  value={form.deadline}
-                  onChange={(event) => setForm((current) => ({ ...current, deadline: event.target.value }))}
-                  type="date"
-                  className="h-10 rounded-lg"
-                />
-
-                <Button onClick={createAssignment} className="h-10 rounded-lg sm:col-span-2 lg:col-span-1">
-                  <Wand2 className="mr-2 h-4 w-4" />
-                  Create
-                </Button>
-              </div>
-            </CardContent>
-          </Card>
-
-          <div className="flex flex-wrap items-center gap-2">
-            {visibleFilters.map((filter) => (
-              <Button
-                key={filter.key}
-                variant={activeFilter === filter.key ? "default" : "outline"}
-                size="sm"
-                className="rounded-full"
-                onClick={() => setActiveFilter(filter.key)}
-              >
-                {filter.label}
-                <span className={cn("ml-1.5 rounded-full px-1.5 text-xs", activeFilter === filter.key ? "bg-primary-foreground/20" : "bg-muted")}>
-                  {filter.count}
+      <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+        {[
+          { label: "All", value: metrics.totalAssignments, detail: "Assignments in circulation", icon: FileText, tone: "text-sky-500" },
+          { label: "Pending review", value: pendingReviewAssignments.length, detail: "Ready for AI evaluation", icon: Clock3, tone: "text-amber-500" },
+          { label: "AI evaluated", value: aiEvaluatedAssignments.length, detail: "Reviewed and graded", icon: CheckCircle2, tone: "text-emerald-500" },
+          { label: "Need attention", value: attentionItems.length, detail: "Missing or late submissions", icon: ShieldAlert, tone: "text-rose-500" },
+        ].map((stat) => {
+          const Icon = stat.icon;
+          return (
+            <Card key={stat.label} className="glass-card rounded-[1.6rem]">
+              <CardHeader className="flex flex-row items-start justify-between space-y-0 pb-2">
+                <div>
+                  <CardDescription>{stat.label}</CardDescription>
+                  <CardTitle className="mt-2 text-3xl tracking-tight">{stat.value}</CardTitle>
+                </div>
+                <span className={`flex h-11 w-11 items-center justify-center rounded-2xl bg-muted/60 ${stat.tone}`}>
+                  <Icon className="h-5 w-5" />
                 </span>
-              </Button>
-            ))}
-          </div>
+              </CardHeader>
+              <CardContent className="pb-5">
+                <p className="text-sm text-muted-foreground">{stat.detail}</p>
+              </CardContent>
+            </Card>
+          );
+        })}
+      </div>
 
-          <div className="space-y-4">
-            {filteredAssignments.map((assignment) => {
-              const state = getAssignmentState(assignment);
-              const statusIcon = statusIcons[assignment.status];
-              const StatusIcon = statusIcon;
-              const isExpanded = expandedIds.includes(assignment.id);
-              const statusLabel =
-                assignment.status === "Pending"
-                  ? "Pending"
-                  : assignment.status === "Submitted"
-                    ? "Pending Review"
-                    : assignment.status === "Reviewed"
-                      ? "AI Evaluated"
-                      : "Late";
-              const displayScore = `${state.score}%`;
-              const performanceLabel =
-                state.score >= 90 ? "Excellent" : state.score >= 75 ? "Good" : state.score >= 60 ? "Fair" : "Needs work";
-              const primaryLabel = state.hasSubmissions
-                ? assignment.status === "Reviewed"
-                  ? "Review Results"
-                  : "AI Evaluate"
-                : "Send Reminder";
+      <Card id="assignment-creator" className="glass-card rounded-[1.8rem]">
+        <CardHeader>
+          <CardTitle className="text-xl">Create assignment</CardTitle>
+          <CardDescription>Title, course, batch, and due date.</CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+            <Input
+              value={form.title}
+              onChange={(event) => setForm((current) => ({ ...current, title: event.target.value }))}
+              placeholder="Assignment title"
+              className="h-11 rounded-2xl sm:col-span-2 lg:col-span-4"
+            />
+
+            <Select value={form.course} onValueChange={(value) => setForm((current) => ({ ...current, course: value }))}>
+              <SelectTrigger className="h-11 w-full rounded-2xl">
+                <SelectValue placeholder="Course" />
+              </SelectTrigger>
+              <SelectContent>
+                {courseOptions.map((course) => (
+                  <SelectItem key={course} value={course}>
+                    {course}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+
+            <Select value={form.batch} onValueChange={(value) => setForm((current) => ({ ...current, batch: value }))}>
+              <SelectTrigger className="h-11 w-full rounded-2xl">
+                <SelectValue placeholder="Batch" />
+              </SelectTrigger>
+              <SelectContent>
+                {batchOptions.map((batch) => (
+                  <SelectItem key={batch.value} value={batch.value}>
+                    {batch.label}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+
+            <Input
+              value={form.deadline}
+              onChange={(event) => setForm((current) => ({ ...current, deadline: event.target.value }))}
+              type="date"
+              className="h-11 rounded-2xl"
+            />
+
+            <Button onClick={createAssignment} className="h-11 rounded-2xl sm:col-span-2 lg:col-span-1">
+              <Sparkles className="mr-2 h-4 w-4" />
+              Create
+            </Button>
+          </div>
+        </CardContent>
+      </Card>
+
+      <div className="flex flex-col gap-3 rounded-2xl border bg-card/70 p-4 shadow-sm lg:flex-row lg:items-center lg:justify-between">
+        <div>
+          <p className="text-sm font-semibold text-foreground">Filter assignments</p>
+          <p className="text-sm text-muted-foreground">Search the current queue before opening a section.</p>
+        </div>
+        <div className="flex w-full gap-2 lg:w-auto lg:min-w-[340px]">
+          <div className="relative flex-1">
+            <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+            <Input value={filterText} onChange={(event) => setFilterText(event.target.value)} placeholder="Search assignments" className="h-11 rounded-full pl-9" />
+          </div>
+        </div>
+      </div>
+
+      <div className="grid gap-6 xl:grid-cols-2">
+        <Card className="glass-card rounded-[1.8rem]">
+          <CardHeader className="flex flex-row items-center justify-between gap-3">
+            <div>
+              <CardTitle className={sectionTitleClass}>All Assignments</CardTitle>
+              <CardDescription>{visibleAssignments.length} assignment{visibleAssignments.length === 1 ? "" : "s"} shown in the active queue.</CardDescription>
+            </div>
+            <Badge variant="outline" className="rounded-full">
+              Live
+            </Badge>
+          </CardHeader>
+          <CardContent className="space-y-3">
+            {visibleAssignments.map((assignment) => {
+              const Icon = statusIcons[assignment.status];
+              const state = assignment.submissions?.length ? assignment.submissions.length : 0;
 
               return (
-                <Card key={assignment.id} className="glass-card overflow-hidden">
-                  <CardContent className="space-y-4 p-4 sm:p-5">
-                    <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
-                      <div className="flex min-w-0 flex-1 gap-3">
-                        <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-primary/10 text-primary">
-                          <StatusIcon className="h-5 w-5" />
-                        </div>
-                        <div className="min-w-0 flex-1 space-y-1.5">
-                          <div className="flex flex-wrap items-center gap-2">
-                            <span className="text-xs text-muted-foreground">{assignment.course}</span>
-                            {assignment.batch ? (
-                              <Badge variant="outline" className="rounded-full text-[10px]">
-                                {assignment.batch}
-                              </Badge>
-                            ) : null}
-                            <Badge className={cn("rounded-full text-xs", statusStyles[assignment.status])}>{statusLabel}</Badge>
-                          </div>
-                          <h3 className="text-base font-semibold sm:text-lg">{assignment.title}</h3>
-                          <p className="text-sm text-muted-foreground">
-                            Due {formatDeadline(assignment.deadline)} · {state.totalSubmissions} submission
-                            {state.totalSubmissions === 1 ? "" : "s"}
-                            {state.hasSubmissions
-                              ? ` · ${state.reviewedSubmissions}/${state.totalSubmissions} reviewed`
-                              : " · awaiting first submission"}
-                          </p>
-                          <div className="max-w-md pt-1">
-                            <div className="mb-1 flex justify-between text-xs text-muted-foreground">
-                              <span>Evaluation progress</span>
-                              <span>{state.progress}%</span>
-                            </div>
-                            <Progress value={state.progress} className="h-1.5" />
-                          </div>
+                <div key={assignment.id} className="rounded-2xl border bg-background/70 p-4">
+                  <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
+                    <div className="min-w-0 space-y-2">
+                      <div className="flex flex-wrap items-center gap-2">
+                        <span className="flex h-10 w-10 items-center justify-center rounded-2xl bg-primary/10 text-primary">
+                          <Icon className="h-5 w-5" />
+                        </span>
+                        <div className="min-w-0">
+                          <p className="font-semibold">{assignment.title}</p>
+                          <p className="text-sm text-muted-foreground">{assignment.course}</p>
                         </div>
                       </div>
-
-                      <div className="flex shrink-0 flex-col items-stretch gap-3 sm:items-end lg:w-44">
-                        <div className="text-left sm:text-right">
-                          <p className="text-xs text-muted-foreground">Avg. score</p>
-                          <p className="text-2xl font-semibold">{displayScore}</p>
-                          <Badge variant="outline" className="mt-1 rounded-full text-xs">
-                            {performanceLabel}
-                          </Badge>
-                        </div>
-                        <div className="flex flex-wrap gap-2 lg:flex-col">
-                          <Button variant="outline" size="sm" className="rounded-lg" onClick={() => toggleExpanded(assignment.id)}>
-                            {isExpanded ? "Hide" : state.hasSubmissions ? "Submissions" : "Details"}
-                          </Button>
-                          <Button
-                            variant="outline"
-                            size="sm"
-                            className="rounded-lg"
-                            onClick={() => (state.hasSubmissions ? toggleExpanded(assignment.id) : handleSendReminder(assignment))}
-                            disabled={sendingReminderFor === assignment.id}
-                          >
-                            {sendingReminderFor === assignment.id ? (
-                              <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                            ) : state.hasSubmissions ? (
-                              <Sparkles className="mr-2 h-4 w-4" />
-                            ) : (
-                              <Send className="mr-2 h-4 w-4" />
-                            )}
-                            {sendingReminderFor === assignment.id ? "Sending…" : primaryLabel}
-                          </Button>
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            className="rounded-lg text-destructive hover:bg-destructive/10"
-                            onClick={() => {
-                              deleteAssignment(assignment.id);
-                              toast.success("Assignment removed");
-                            }}
-                          >
-                            <Trash2 className="mr-2 h-4 w-4" />
-                            Delete
-                          </Button>
-                        </div>
+                      <div className="flex flex-wrap items-center gap-2">
+                        {assignment.batch ? <Badge variant="outline" className="rounded-full">{assignment.batch}</Badge> : null}
+                        <Badge className={cn("rounded-full text-xs", statusStyles[assignment.status])}>
+                          {assignment.status === "Submitted" ? "Pending Review" : assignment.status === "Reviewed" ? "AI Evaluated" : assignment.status}
+                        </Badge>
+                        <Badge variant="outline" className="rounded-full">{state} submission{state === 1 ? "" : "s"}</Badge>
                       </div>
+                      <p className="text-sm text-muted-foreground">
+                        Due {formatAssignmentDeadline(assignment.deadline)}
+                      </p>
                     </div>
 
-                    {state.hasSubmissions && isExpanded && (
-                      <>
-                        <Separator />
-                        <div className="space-y-4">
-                          <div className="flex items-center justify-between">
-                            <div>
-                              <p className="text-sm font-semibold">Submission review</p>
-                              <p className="text-sm text-muted-foreground">Evaluate each submission with marks and feedback.</p>
-                            </div>
-                            <Badge variant="outline" className="rounded-full border-border/70 bg-background/70">
-                              {state.totalSubmissions} items
-                            </Badge>
-                          </div>
-
-                          <div className="space-y-3">
-                            {state.submissions.map((submission) => {
-                              const currentMarks = marksBySubmission[submission.id]?.marks ?? submission.marks ?? "A+";
-                              const currentFeedback =
-                                marksBySubmission[submission.id]?.feedback ?? submission.feedback ?? "Great work.";
-
-                              return (
-                                <div
-                                  key={submission.id}
-                                  className="rounded-2xl border border-border/60 bg-background/70 p-4 shadow-sm"
-                                >
-                                  <div className="flex flex-wrap items-start justify-between gap-3">
-                                    <div>
-                                      <p className="font-semibold">{submission.studentName}</p>
-                                      <p className="mt-1 text-sm text-muted-foreground">
-                                        Submitted {submission.submittedAt} - {submission.fileName}
-                                      </p>
-                                    </div>
-                                    <Badge
-                                      variant="outline"
-                                      className={cn(
-                                        "rounded-full border px-3 py-1 text-xs font-medium",
-                                        submission.status === "Reviewed"
-                                          ? "border-emerald-200 bg-emerald-50 text-emerald-700"
-                                          : "border-sky-200 bg-sky-50 text-sky-700",
-                                      )}
-                                    >
-                                      {submission.status}
-                                    </Badge>
-                                  </div>
-
-                                  <div className="mt-4 grid gap-3 lg:grid-cols-[0.7fr_1.3fr_auto]">
-                                    <Input
-                                      value={currentMarks}
-                                      onChange={(event) =>
-                                        setMarksBySubmission((current) => ({
-                                          ...current,
-                                          [submission.id]: { marks: event.target.value, feedback: currentFeedback },
-                                        }))
-                                      }
-                                      placeholder="Marks"
-                                      className="h-11 rounded-xl bg-background"
-                                    />
-                                    <Input
-                                      value={currentFeedback}
-                                      onChange={(event) =>
-                                        setMarksBySubmission((current) => ({
-                                          ...current,
-                                          [submission.id]: { marks: currentMarks, feedback: event.target.value },
-                                        }))
-                                      }
-                                      placeholder="Feedback"
-                                      className="h-11 rounded-xl bg-background"
-                                    />
-                                    <Button
-                                      className="h-11 rounded-xl bg-slate-950 px-5 text-white hover:bg-slate-800 dark:bg-white dark:text-slate-950"
-                                      onClick={() =>
-                                        reviewAssignmentSubmission(
-                                          assignment.id,
-                                          submission.id,
-                                          currentMarks,
-                                          currentFeedback,
-                                        )
-                                      }
-                                    >
-                                      <Send className="mr-2 h-4 w-4" />
-                                      Give marks
-                                    </Button>
-                                  </div>
-                                </div>
-                              );
-                            })}
-                          </div>
-                        </div>
-                      </>
-                    )}
-                  </CardContent>
-                </Card>
+                    <div className="flex flex-wrap gap-2 md:justify-end">
+                      {assignment.submissions?.length ? (
+                        <Button variant="outline" size="sm" className="rounded-full" onClick={() => openAiModal(assignment)}>
+                          <Sparkles className="mr-2 h-4 w-4" />
+                          AI Evaluate
+                        </Button>
+                      ) : null}
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        className="rounded-full text-destructive hover:bg-destructive/10"
+                        onClick={() => {
+                          deleteAssignment(assignment.id);
+                          addNotification("Assignment deleted", `${assignment.title} was removed.`);
+                          toast.success("Assignment deleted");
+                        }}
+                      >
+                        <Trash2 className="mr-2 h-4 w-4" />
+                        Delete
+                      </Button>
+                    </div>
+                  </div>
+                </div>
               );
             })}
 
-            {filteredAssignments.length === 0 && (
-              <Card className="border-border/60 bg-card/80">
-                <CardContent className="flex flex-col items-center justify-center gap-3 py-16 text-center">
-                  <div className="flex h-14 w-14 items-center justify-center rounded-2xl border border-dashed border-border/70 bg-muted/30 text-muted-foreground">
-                    <Search className="h-6 w-6" />
-                  </div>
-                  <div className="space-y-1">
-                    <p className="text-lg font-semibold">No assignments found</p>
-                    <p className="text-sm text-muted-foreground">Switch filters or create a new assignment to get started.</p>
-                  </div>
-                </CardContent>
-              </Card>
-            )}
+            {visibleAssignments.length === 0 ? (
+              <div className="rounded-2xl border border-dashed bg-muted/30 p-6 text-center text-sm text-muted-foreground">
+                No assignments match the current search.
+              </div>
+            ) : null}
+          </CardContent>
+        </Card>
 
-            <div className="flex items-center justify-center py-2">
-              <Button variant="ghost" className="rounded-full text-primary">
-                Load more assignments
-                <ArrowRight className="ml-2 h-4 w-4" />
-              </Button>
+        <Card className="glass-card rounded-[1.8rem]">
+          <CardHeader className="flex flex-row items-center justify-between gap-3">
+            <div>
+              <CardTitle className={sectionTitleClass}>Pending Review</CardTitle>
+              <CardDescription>Submitted work that needs AI evaluation or final feedback.</CardDescription>
             </div>
-          </div>
-        </div>
-
-        <aside className="space-y-4">
-          <Card className="glass-card">
-            <CardHeader className="pb-2">
-              <CardTitle className="text-base">Summary</CardTitle>
-            </CardHeader>
-            <CardContent className="grid grid-cols-2 gap-2">
-              {[
-                { label: "Total", value: metrics.totalAssignments, icon: BarChart3 },
-                { label: "Evaluated", value: metrics.reviewedCount, icon: CheckCircle2 },
-                { label: "Pending", value: metrics.submittedCount, icon: Clock3 },
-                { label: "Needs review", value: metrics.attentionCount, icon: CircleAlert },
-              ].map((item) => {
-                const Icon = item.icon;
-                return (
-                  <div key={item.label} className="rounded-xl border bg-muted/30 p-3">
-                    <Icon className="mb-2 h-4 w-4 text-primary" />
-                    <p className="text-xs text-muted-foreground">{item.label}</p>
-                    <p className="text-lg font-semibold">{item.value}</p>
+            <Badge variant="outline" className="rounded-full">
+              {pendingReviewAssignments.length} pending
+            </Badge>
+          </CardHeader>
+          <CardContent className="space-y-3">
+            {pendingReviewAssignments.map((assignment) => (
+              <div key={assignment.id} className="rounded-2xl border bg-background/70 p-4">
+                <div className="flex flex-wrap items-center justify-between gap-3">
+                  <div>
+                    <p className="font-semibold">{assignment.title}</p>
+                    <p className="text-sm text-muted-foreground">{assignment.course}</p>
                   </div>
-                );
-              })}
-            </CardContent>
-          </Card>
+                  <Badge variant="outline" className="rounded-full">
+                    {assignment.submissions?.length ?? 0} submission{(assignment.submissions?.length ?? 0) === 1 ? "" : "s"}
+                  </Badge>
+                </div>
 
-          <Card className="glass-card">
-            <CardHeader className="pb-2">
-              <CardTitle className="text-base">Insights</CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-2 text-sm text-muted-foreground">
-              <p>
-                {metrics.attentionCount === 1 ? "1 assignment is" : `${metrics.attentionCount} assignments are`} waiting for review.
-              </p>
-              <p>
-                Most active: <span className="font-medium text-foreground">{metrics.topCourse}</span>
-              </p>
-              <p>{metrics.totalSubmissions} submissions in the queue.</p>
-              <Button size="sm" className="mt-2 w-full rounded-lg" onClick={handleAskAI}>
-                <Sparkles className="mr-2 h-4 w-4" />
-                Ask AI assistant
-              </Button>
-            </CardContent>
-          </Card>
-
-          <Card className="glass-card">
-            <CardHeader className="flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-base">Recent activity</CardTitle>
-              <Button variant="ghost" size="sm" className="h-8 px-2" onClick={() => setActiveFilter("all")}>
-                All
-              </Button>
-            </CardHeader>
-            <CardContent className="space-y-2">
-              {recentActivity.map((assignment) => {
-                const Icon =
-                  assignment.status === "Reviewed" ? CheckCircle2 : assignment.status === "Submitted" ? FileText : CalendarDays;
-                const detail =
-                  assignment.status === "Reviewed"
-                    ? `Evaluated: ${assignment.title}`
-                    : assignment.status === "Submitted"
-                      ? `New submission: ${assignment.title}`
-                      : `Created: ${assignment.title}`;
-
-                return (
-                  <div key={assignment.id} className="flex gap-2 rounded-lg border bg-muted/20 p-2.5">
-                    <Icon className="mt-0.5 h-4 w-4 shrink-0 text-primary" />
-                    <div className="min-w-0">
-                      <p className="truncate text-xs font-medium">{detail}</p>
-                      <p className="text-[11px] text-muted-foreground">{assignment.course}</p>
+                <div className="mt-4 space-y-3">
+                  {assignment.submissions?.map((submission) => (
+                    <div key={submission.id} className="rounded-2xl border bg-muted/30 p-3">
+                      <div className="flex flex-wrap items-center justify-between gap-3">
+                        <div className="min-w-0">
+                          <p className="font-medium">{submission.studentName}</p>
+                          <p className="text-sm text-muted-foreground">
+                            Submitted {formatSubmissionTime(submission.submittedAt)} · {submission.fileName}
+                          </p>
+                        </div>
+                        <Badge variant="outline" className="rounded-full">
+                          {submission.status}
+                        </Badge>
+                      </div>
+                      <div className="mt-3 flex flex-wrap gap-2">
+                        <Button size="sm" className="rounded-full" onClick={() => openAiModal(assignment, submission)}>
+                          <Sparkles className="mr-2 h-4 w-4" />
+                          AI Evaluate
+                        </Button>
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          className="rounded-full"
+                          onClick={() => {
+                            setSelectedAssignmentId(assignment.id);
+                            setSelectedSubmissionId(submission.id);
+                            setAiModalOpen(true);
+                          }}
+                        >
+                          View details
+                        </Button>
+                      </div>
                     </div>
+                  ))}
+                </div>
+              </div>
+            ))}
+
+            {pendingReviewAssignments.length === 0 ? (
+              <div className="rounded-2xl border border-dashed bg-muted/30 p-6 text-center text-sm text-muted-foreground">
+                No submissions are waiting for review.
+              </div>
+            ) : null}
+          </CardContent>
+        </Card>
+      </div>
+
+      <div className="grid gap-6 xl:grid-cols-2">
+        <Card className="glass-card rounded-[1.8rem]">
+          <CardHeader className="flex flex-row items-center justify-between gap-3">
+            <div>
+              <CardTitle className={sectionTitleClass}>AI Evaluates</CardTitle>
+              <CardDescription>Assignments already graded by AI with marks and review notes.</CardDescription>
+            </div>
+            <Badge variant="outline" className="rounded-full">
+              Reviewed
+            </Badge>
+          </CardHeader>
+          <CardContent className="space-y-3">
+            {aiEvaluatedAssignments.map((assignment) => (
+              <div key={assignment.id} className="rounded-2xl border bg-background/70 p-4">
+                <div className="flex flex-wrap items-start justify-between gap-3">
+                  <div>
+                    <p className="font-semibold">{assignment.title}</p>
+                    <p className="text-sm text-muted-foreground">{assignment.course}</p>
                   </div>
-                );
-              })}
-            </CardContent>
-          </Card>
-        </aside>
-      </section>
+                  <Badge className="rounded-full bg-emerald-500/10 text-emerald-700 hover:bg-emerald-500/10">
+                    {assignment.grade ?? "Reviewed"}
+                  </Badge>
+                </div>
+                <p className="mt-3 text-sm text-muted-foreground">{assignment.feedback ?? "AI review is ready for the student."}</p>
+                <div className="mt-3 flex items-center gap-2 text-xs text-muted-foreground">
+                  <CheckCircle2 className="h-4 w-4 text-emerald-600" />
+                  AI evaluation stored in the assignment ledger
+                </div>
+              </div>
+            ))}
+
+            {aiEvaluatedAssignments.length === 0 ? (
+              <div className="rounded-2xl border border-dashed bg-muted/30 p-6 text-center text-sm text-muted-foreground">
+                No AI-evaluated assignments yet.
+              </div>
+            ) : null}
+          </CardContent>
+        </Card>
+
+        <Card className="glass-card rounded-[1.8rem]">
+          <CardHeader className="flex flex-row items-center justify-between gap-3">
+            <div>
+              <CardTitle className={sectionTitleClass}>Need Attention</CardTitle>
+              <CardDescription>Students who missed deadlines or have not submitted yet.</CardDescription>
+            </div>
+            <Badge variant="outline" className="rounded-full">
+              {attentionItems.length} alerts
+            </Badge>
+          </CardHeader>
+          <CardContent className="space-y-3">
+            {attentionItems.map((item) => (
+              <div key={`${item.assignment.id}-${item.student.id}`} className="rounded-2xl border bg-background/70 p-4">
+                <div className="flex flex-wrap items-start justify-between gap-3">
+                  <div className="min-w-0">
+                    <p className="font-semibold">{item.student.name}</p>
+                    <p className="text-sm text-muted-foreground">
+                      {item.assignment.title} · {item.assignment.course}
+                    </p>
+                    <p className="mt-1 text-sm text-muted-foreground">{item.reason}</p>
+                  </div>
+                  <Badge variant="outline" className="rounded-full">
+                    {item.assignment.batch ?? "No batch"}
+                  </Badge>
+                </div>
+                <div className="mt-3 flex items-center justify-between gap-3">
+                  <p className="text-xs text-muted-foreground">
+                    Due {formatAssignmentDeadline(item.assignment.deadline)}
+                  </p>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    className="rounded-full"
+                    onClick={() => sendFollowUp(item)}
+                    disabled={sendingReminderFor === `${item.assignment.id}-${item.student.id}`}
+                  >
+                    {sendingReminderFor === `${item.assignment.id}-${item.student.id}` ? (
+                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                    ) : (
+                      <Megaphone className="mr-2 h-4 w-4" />
+                    )}
+                    Notify
+                  </Button>
+                </div>
+              </div>
+            ))}
+
+            {attentionItems.length === 0 ? (
+              <div className="rounded-2xl border border-dashed bg-muted/30 p-6 text-center text-sm text-muted-foreground">
+                No students need follow-up right now.
+              </div>
+            ) : null}
+          </CardContent>
+        </Card>
+      </div>
+
+      <Card className="glass-card rounded-[1.8rem]">
+        <CardHeader className="flex flex-row items-start justify-between gap-4">
+          <div>
+            <CardTitle className="text-xl">Assignment overview</CardTitle>
+            <CardDescription>High-level activity across the faculty queue.</CardDescription>
+          </div>
+          <Badge variant="outline" className="rounded-full">
+            {metrics.totalSubmissions} submissions
+          </Badge>
+        </CardHeader>
+        <CardContent className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+          {[
+            { label: "Reviewed", value: metrics.reviewedCount, icon: CheckCircle2, tone: "text-emerald-600" },
+            { label: "Submitted", value: metrics.submittedCount, icon: Clock3, tone: "text-amber-600" },
+            { label: "Need attention", value: metrics.attentionCount, icon: ShieldAlert, tone: "text-rose-600" },
+            { label: "Top course", value: metrics.topCourse, icon: UserRoundCheck, tone: "text-sky-600" },
+          ].map((item) => {
+            const Icon = item.icon;
+            return (
+              <div key={item.label} className="rounded-2xl border bg-background/70 p-4">
+                <Icon className={cn("h-4 w-4", item.tone)} />
+                <p className="mt-2 text-sm text-muted-foreground">{item.label}</p>
+                <p className="mt-1 text-lg font-semibold">{item.value}</p>
+              </div>
+            );
+          })}
+        </CardContent>
+      </Card>
+
+      <Dialog open={aiModalOpen} onOpenChange={setAiModalOpen}>
+        <DialogContent className="sm:max-w-2xl">
+          <DialogHeader>
+            <DialogTitle>AI evaluation</DialogTitle>
+            <DialogDescription>Review a submitted assignment with the backend evaluator and save the marks.</DialogDescription>
+          </DialogHeader>
+
+          {selectedAssignment ? (
+            <div className="space-y-4">
+              <div className="rounded-2xl border bg-muted/30 p-4">
+                <p className="text-sm font-medium">{selectedAssignment.title}</p>
+                <p className="text-sm text-muted-foreground">
+                  {selectedAssignment.course} {selectedAssignment.batch ? `· ${selectedAssignment.batch}` : ""}
+                </p>
+              </div>
+
+              <div className="space-y-3">
+                {selectedAssignment.submissions?.map((submission) => {
+                  const active = submission.id === selectedSubmission?.id;
+                  return (
+                    <button
+                      key={submission.id}
+                      type="button"
+                      onClick={() => setSelectedSubmissionId(submission.id)}
+                      className={cn(
+                        "flex w-full items-start justify-between gap-3 rounded-2xl border p-4 text-left transition",
+                        active ? "border-primary/30 bg-primary/5 shadow-sm" : "bg-background/70 hover:border-primary/20 hover:bg-muted/30",
+                      )}
+                    >
+                      <div className="min-w-0">
+                        <p className="font-medium">{submission.studentName}</p>
+                        <p className="text-sm text-muted-foreground">
+                          {submission.fileName} · {formatSubmissionTime(submission.submittedAt)}
+                        </p>
+                      </div>
+                      <Badge variant="outline" className="rounded-full">
+                        {submission.status}
+                      </Badge>
+                    </button>
+                  );
+                })}
+              </div>
+
+              {selectedSubmission ? (
+                <div className="rounded-2xl border bg-background/70 p-4">
+                  <div className="flex items-center justify-between gap-3">
+                    <div>
+                      <p className="text-sm font-medium">{selectedSubmission.studentName}</p>
+                      <p className="text-sm text-muted-foreground">{selectedSubmission.fileName}</p>
+                    </div>
+                    <Badge variant="outline" className="rounded-full">
+                      Ready
+                    </Badge>
+                  </div>
+                  <p className="mt-3 text-sm text-muted-foreground">{selectedSubmission.notes ?? "No submission note attached."}</p>
+                </div>
+              ) : null}
+            </div>
+          ) : null}
+
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setAiModalOpen(false)}>
+              Close
+            </Button>
+            {selectedAssignment && selectedSubmission ? (
+              <Button onClick={() => runAiEvaluation(selectedAssignment, selectedSubmission)} disabled={evaluatingSubmissionId === selectedSubmission.id}>
+                {evaluatingSubmissionId === selectedSubmission.id ? (
+                  <>
+                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                    Evaluating...
+                  </>
+                ) : (
+                  <>
+                    <Sparkles className="mr-2 h-4 w-4" />
+                    Run AI evaluation
+                  </>
+                )}
+              </Button>
+            ) : null}
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

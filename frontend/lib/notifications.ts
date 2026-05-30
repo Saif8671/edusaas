@@ -29,6 +29,15 @@ export type AssignmentDeadlineInput = {
   deadline: string;
 };
 
+export type AssignmentFollowUpInput = {
+  assignmentTitle: string;
+  studentName: string;
+  course: string;
+  dueDate?: string;
+  batch?: string;
+  reason: string;
+};
+
 export type CertificateIssuedInput = {
   studentName: string;
   course: string;
@@ -190,6 +199,41 @@ export function buildAssignmentDeadlineHtml(input: AssignmentDeadlineInput) {
       <p style="margin: 0 0 8px;"><strong>Course:</strong> ${input.course}</p>
       <p style="margin: 0 0 8px;"><strong>Deadline:</strong> ${input.deadline}</p>
       <p style="margin: 0 0 16px;">Please submit before the deadline to avoid late penalties.</p>
+      <p style="margin: 0;">Regards,<br />EduLMS</p>
+    </div>
+  `;
+}
+
+export function buildAssignmentFollowUpText(input: AssignmentFollowUpInput) {
+  return [
+    "EduLMS Assignment Follow-up",
+    "",
+    `Student: ${input.studentName}`,
+    `Assignment: ${input.assignmentTitle}`,
+    `Course: ${input.course}`,
+    input.batch ? `Batch: ${input.batch}` : null,
+    input.dueDate ? `Due Date: ${input.dueDate}` : null,
+    "",
+    input.reason,
+    "",
+    "Please submit or connect with the faculty team as soon as possible.",
+    "",
+    "Regards,",
+    "EduLMS",
+  ].filter(Boolean).join("\n");
+}
+
+export function buildAssignmentFollowUpHtml(input: AssignmentFollowUpInput) {
+  return `
+    <div style="font-family: Arial, sans-serif; line-height: 1.6; color: #0f172a;">
+      <h2 style="margin: 0 0 12px;">EduLMS Assignment Follow-up</h2>
+      <p style="margin: 0 0 8px;"><strong>Student:</strong> ${input.studentName}</p>
+      <p style="margin: 0 0 8px;"><strong>Assignment:</strong> ${input.assignmentTitle}</p>
+      <p style="margin: 0 0 8px;"><strong>Course:</strong> ${input.course}</p>
+      ${input.batch ? `<p style="margin: 0 0 8px;"><strong>Batch:</strong> ${input.batch}</p>` : ""}
+      ${input.dueDate ? `<p style="margin: 0 0 8px;"><strong>Due Date:</strong> ${input.dueDate}</p>` : ""}
+      <p style="margin: 0 0 16px;">${input.reason}</p>
+      <p style="margin: 0 0 16px;">Please submit or connect with the faculty team as soon as possible.</p>
       <p style="margin: 0;">Regards,<br />EduLMS</p>
     </div>
   `;
