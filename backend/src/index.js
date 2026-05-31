@@ -6,6 +6,7 @@ require('dotenv').config();
 
 const { cleanText } = require('./utils/text');
 const { processStudyRequest, normalizeSources } = require('./services/studyAssistant');
+const { searchWeb } = require('./services/webSearch');
 
 const app = express();
 const START_PORT = Number(process.env.PORT) || 5000;
@@ -88,6 +89,29 @@ function truncateSource(value, max = 240) {
     if (!text) return '';
     return text.length <= max ? text : `${text.slice(0, max)}…`;
 }
+
+app.post('/api/study-assistant/web-search', async (req, res) => {
+    try {
+        const body = req.body ?? {};
+        const query = cleanText(body.query);
+
+        if (!query) {
+            return res.status(400).json({ error: 'A search query is required.' });
+        }
+
+        const sources = await searchWeb(query, {
+            mode: cleanText(body.mode) || 'web',
+            course: cleanText(body.course),
+            limit: Number(body.limit) || 4,
+        });
+
+        return res.status(200).json({ sources });
+    } catch (error) {
+        return res.status(500).json({
+            error: error instanceof Error ? error.message : 'Unable to search the web.',
+        });
+    }
+});
 
 app.post('/api/study-assistant', async (req, res) => {
     try {

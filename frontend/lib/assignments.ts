@@ -1,6 +1,61 @@
 import type { AssignmentData } from "@/lib/store";
 import { CheckCircle2, CircleAlert, Sparkles } from "lucide-react";
 
+export type EnrollmentProfile = { course: string; batch: string };
+export type BatchLookup = { id: string; name: string };
+
+function normalizeCourse(value: string) {
+  return value.trim().toLowerCase();
+}
+
+function normalizeBatch(value: string) {
+  return value.trim().toLowerCase();
+}
+
+function resolveBatchRef(value: string, batches: BatchLookup[]) {
+  const normalized = normalizeBatch(value);
+  const match = batches.find(
+    (batch) => normalizeBatch(batch.id) === normalized || normalizeBatch(batch.name) === normalized,
+  );
+  return match ? { id: normalizeBatch(match.id), name: normalizeBatch(match.name) } : { id: normalized, name: normalized };
+}
+
+export function matchesStudentEnrollment(
+  assignment: AssignmentData,
+  profile: EnrollmentProfile,
+  batches: BatchLookup[] = [],
+) {
+  if (normalizeCourse(assignment.course) !== normalizeCourse(profile.course)) {
+    return false;
+  }
+
+  if (!assignment.batch?.trim()) {
+    return true;
+  }
+
+  const assignmentRef = resolveBatchRef(assignment.batch, batches);
+  const studentRef = resolveBatchRef(profile.batch, batches);
+
+  return (
+    assignmentRef.id === studentRef.id ||
+    assignmentRef.id === studentRef.name ||
+    assignmentRef.name === studentRef.id ||
+    assignmentRef.name === studentRef.name
+  );
+}
+
+export function filterStudentsForAssignment<T extends EnrollmentProfile>(
+  students: T[],
+  assignment: Pick<AssignmentData, "course" | "batch">,
+  batches: BatchLookup[] = [],
+) {
+  return students.filter((student) => matchesStudentEnrollment(
+    { ...assignment, id: "", title: "", deadline: "", status: "Pending" },
+    student,
+    batches,
+  ));
+}
+
 export type AssignmentFilter = "all" | "pending" | "submitted" | "reviewed" | "needs-attention";
 
 export const assignmentFilters: Array<{ key: AssignmentFilter; label: string }> = [

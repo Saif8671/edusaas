@@ -9,10 +9,12 @@ import {
   Filter,
   IndianRupee,
   Plus,
+  Receipt,
   Search,
   Send,
   ShieldCheck,
   Smartphone,
+  Zap,
 } from "lucide-react";
 import {
   Cell,
@@ -32,6 +34,7 @@ import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { buildFeeReminderText, deliverWhatsAppNotification } from "@/lib/notifications";
 import { toast } from "@/lib/toast";
+import { cn } from "@/lib/utils";
 
 const PIE_COLORS = {
   Paid: "#22c55e",
@@ -65,6 +68,52 @@ type InvoicePreview = {
   html: string;
   text: string;
 };
+
+function PaymentQuickAction({
+  title,
+  description,
+  icon: Icon,
+  tone,
+  badge,
+  disabled,
+  onClick,
+}: {
+  title: string;
+  description: string;
+  icon: typeof Plus;
+  tone: string;
+  badge?: string;
+  disabled?: boolean;
+  onClick?: () => void;
+}) {
+  return (
+    <button
+      type="button"
+      disabled={disabled}
+      onClick={onClick}
+      className={cn(
+        "group relative flex min-h-[132px] min-w-0 flex-col justify-between overflow-hidden rounded-[1.35rem] border bg-background/70 p-4 text-left transition-all",
+        "hover:-translate-y-0.5 hover:border-primary/35 hover:shadow-lg disabled:cursor-not-allowed disabled:opacity-60",
+      )}
+    >
+      <div className="flex items-start justify-between gap-3">
+        <span className={cn("flex h-11 w-11 items-center justify-center rounded-2xl", tone)}>
+          <Icon className="h-5 w-5" />
+        </span>
+        {badge ? (
+          <span className="rounded-full bg-primary/10 px-2.5 py-1 text-[11px] font-semibold text-primary">
+            {badge}
+          </span>
+        ) : null}
+      </div>
+      <div className="mt-4">
+        <p className="font-semibold text-foreground">{title}</p>
+        <p className="mt-1 text-sm leading-5 text-muted-foreground">{description}</p>
+      </div>
+      <span className="pointer-events-none absolute inset-x-0 bottom-0 h-1 scale-x-0 bg-primary/70 transition-transform group-hover:scale-x-100" />
+    </button>
+  );
+}
 
 export default function AdminPayments() {
   const { currentUser, invoices, updateInvoice, addInvoice, addNotification, students } = useAppStore();
@@ -369,6 +418,63 @@ export default function AdminPayments() {
         })}
       </div>
 
+      <Card className="glass-card overflow-hidden rounded-[1.8rem]">
+        <CardHeader className="border-b bg-gradient-to-r from-primary/5 via-transparent to-emerald-500/5 pb-5">
+          <div className="flex flex-col gap-2 lg:flex-row lg:items-end lg:justify-between">
+            <div>
+              <div className="mb-2 inline-flex items-center gap-2 rounded-full border border-primary/15 bg-primary/5 px-3 py-1 text-xs font-semibold text-primary">
+                <Zap className="h-3.5 w-3.5" />
+                Finance quick actions
+              </div>
+              <CardTitle className="text-xl">Run billing workflows in one click</CardTitle>
+              <CardDescription className="max-w-2xl">
+                Generate invoices, chase pending fees, export receipts, and jump straight to the records that need attention.
+              </CardDescription>
+            </div>
+            <div className="flex flex-wrap gap-2 text-xs text-muted-foreground">
+              <span className="rounded-full border bg-background/70 px-3 py-1">{pendingInvoices.length} open invoices</span>
+              <span className="rounded-full border bg-background/70 px-3 py-1">{formatCurrency(stats.totalPending + stats.totalOverdue)} outstanding</span>
+            </div>
+          </div>
+        </CardHeader>
+        <CardContent className="grid grid-cols-1 gap-3 p-4 sm:grid-cols-2 xl:grid-cols-4">
+          <PaymentQuickAction
+            title="Generate invoice"
+            description="Create a new student billing entry with due date and amount."
+            icon={Plus}
+            tone="bg-primary/12 text-primary"
+            onClick={openInvoiceDialog}
+          />
+          <PaymentQuickAction
+            title="WhatsApp reminders"
+            description="Send fee reminders for every pending or overdue invoice."
+            icon={BellRing}
+            tone="bg-amber-500/12 text-amber-600"
+            badge={pendingInvoices.length > 0 ? `${pendingInvoices.length} due` : undefined}
+            disabled={sendingReminderFor === "bulk"}
+            onClick={() => void handleSendAllReminders()}
+          />
+          <PaymentQuickAction
+            title="Download receipt bundle"
+            description="Export the full payment ledger as a CSV audit file."
+            icon={Download}
+            tone="bg-emerald-500/12 text-emerald-600"
+            onClick={downloadReceiptBundle}
+          />
+          <PaymentQuickAction
+            title="Review pending dues"
+            description="Filter the invoice table to unpaid records that need follow-up."
+            icon={Receipt}
+            tone="bg-sky-500/12 text-sky-600"
+            badge={invoices.filter((invoice) => invoice.status === "Pending").length > 0 ? "Pending" : undefined}
+            onClick={() => {
+              setStatusFilter("Pending");
+              toast.info("Showing pending invoices");
+            }}
+          />
+        </CardContent>
+      </Card>
+
       <div className="grid gap-6 xl:grid-cols-[1.45fr_0.85fr]">
         <Card className="glass-card rounded-[1.8rem]">
           <CardHeader className="gap-4 pb-4">
@@ -555,58 +661,6 @@ export default function AdminPayments() {
                   </div>
                 ))}
               </div>
-            </CardContent>
-          </Card>
-
-          <Card className="glass-card rounded-[1.8rem]">
-            <CardHeader>
-              <CardTitle className="text-xl">Quick actions</CardTitle>
-              <CardDescription>Common finance tasks inspired by the sample layout.</CardDescription>
-            </CardHeader>
-            <CardContent className="grid grid-cols-1 gap-3 sm:grid-cols-3">
-              {[
-                {
-                  title: "Generate invoice",
-                  description: "Create a new student billing entry.",
-                  onClick: openInvoiceDialog,
-                  icon: Plus,
-                  disabled: false,
-                },
-                {
-                  title: "WhatsApp reminders",
-                  description: "Ping pending and overdue invoices.",
-                  onClick: () => void handleSendAllReminders(),
-                  icon: BellRing,
-                  disabled: sendingReminderFor === "bulk",
-                },
-                {
-                  title: "Download receipt bundle",
-                  description: "Collect payment history for auditing.",
-                  onClick: downloadReceiptBundle,
-                  icon: Download,
-                  disabled: false,
-                },
-              ].map((action) => {
-                const Icon = action.icon;
-
-                return (
-                <button
-                  key={action.title}
-                  type="button"
-                  disabled={action.disabled}
-                  onClick={action.onClick}
-                  className="flex min-w-0 flex-1 items-center gap-4 rounded-[1.2rem] border bg-background/70 p-4 text-left transition-all hover:-translate-y-0.5 hover:border-primary/40 hover:shadow-md disabled:cursor-not-allowed disabled:opacity-60"
-                >
-                  <span className="flex h-11 w-11 items-center justify-center rounded-2xl bg-primary/10 text-primary">
-                    <Icon className="h-5 w-5" />
-                  </span>
-                  <div className="min-w-0 flex-1">
-                    <p className="font-medium">{action.title}</p>
-                    <p className="text-sm text-muted-foreground">{action.description}</p>
-                  </div>
-                </button>
-                );
-              })}
             </CardContent>
           </Card>
         </div>

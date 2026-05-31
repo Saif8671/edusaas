@@ -1,6 +1,6 @@
 "use client";
 
-import { type ComponentType, useMemo, useRef, useState } from "react";
+import { type ChangeEvent, type ComponentType, useMemo, useRef, useState } from "react";
 
 import {
   ArrowRight,
@@ -17,6 +17,7 @@ import {
   Plus,
   Send,
   Sparkles,
+  Upload,
   Video,
   Workflow,
   X,
@@ -24,12 +25,15 @@ import {
 
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
+import { Input } from "@/components/ui/input";
+import { ResizableHandle, ResizablePanel, ResizablePanelGroup } from "@/components/ui/resizable";
 import { toast } from "@/lib/toast";
 import { useAppStore } from "@/lib/store";
 import {
   askStudyAssistant,
   createMessage,
   createSource,
+  searchWebSources,
   STUDIO_SLUGS,
   summarizeStudySources,
   type StudyAssistantResponse,
@@ -69,7 +73,29 @@ function SectionTitle({ label, icon: Icon }: { label: string; icon: ComponentTyp
   );
 }
 
-function StudioOutputPanel({ output }: { output: StudyAssistantResponse | null }) {
+function StudioOutputPanel({
+  output,
+  loading,
+  activeLabel,
+}: {
+  output: StudyAssistantResponse | null;
+  loading: boolean;
+  activeLabel?: string | null;
+}) {
+  if (loading) {
+    return (
+      <div className="rounded-[1.25rem] border border-white/10 bg-background/30 p-6">
+        <div className="flex items-center gap-3 text-sm text-muted-foreground">
+          <Loader2 className="h-5 w-5 animate-spin text-primary" />
+          <div>
+            <p className="font-medium text-foreground">Generating {activeLabel ?? "studio asset"}…</p>
+            <p className="text-xs">Results appear here without filling your chat thread.</p>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
   if (!output) {
     return (
       <div className="rounded-[1.25rem] border border-dashed border-white/10 bg-background/20 p-4">
@@ -248,7 +274,13 @@ export default function AiStudyAssistancePage() {
   const [showSourceForm, setShowSourceForm] = useState(false);
   const [sourceTitle, setSourceTitle] = useState("");
   const [sourceContent, setSourceContent] = useState("");
+  const [webSearchQuery, setWebSearchQuery] = useState("");
+  const [webSearching, setWebSearching] = useState(false);
+  const [uploadingSource, setUploadingSource] = useState(false);
+  const [studioGenerating, setStudioGenerating] = useState(false);
+  const [activeStudioLabel, setActiveStudioLabel] = useState<string | null>(null);
   const chatEndRef = useRef<HTMLDivElement | null>(null);
+  const fileInputRef = useRef<HTMLInputElement | null>(null);
 
   const studentName = studentProfile?.name ?? "Student";
   const course = studentProfile?.course ?? "Your course";
@@ -311,18 +343,115 @@ export default function AiStudyAssistancePage() {
       return;
     }
 
-    const nextSources = [...sources, createSource(title, content)];
-    setSources(nextSources);
+    await persistSources([...sources, createSource(title, content)]);
     setSourceTitle("");
     setSourceContent("");
     setShowSourceForm(false);
+  };
+
+  const persistSources = async (nextSources: StudySource[], notify = true) => {
+    setSources(nextSources);
 
     try {
       const summarized = await summarizeStudySources(nextSources);
       setSources(summarized);
-      toast.success("Source added");
+      if (notify) toast.success("Source added");
     } catch {
-      toast.success("Source added");
+      if (notify) toast.success("Source added");
+    }
+  };
+
+  const readUploadedFile = (file: File) =>
+    new Promise<{ title: string; content: string; type: StudySource["type"] }>((resolve, reject) => {
+      const title = file.name.replace(/\.[^.]+$/, "") || file.name;
+      const extension = file.name.split(".").pop()?.toLowerCase() ?? "";
+
+      if (file.type.startsWith("audio/")) {
+        resolve({
+          title,
+          content: `Audio file uploaded: ${file.name} (${Math.max(1, Math.round(file.size / 1024))} KB). Use this as a spoken revision reference.`,
+          type: "audio",
+        });
+        return;
+      }
+
+      if (file.type.startsWith("video/")) {
+        resolve({
+          title,
+          content: `Video file uploaded: ${file.name} (${Math.max(1, Math.round(file.size / 1024))} KB). Use this as a visual revision reference.`,
+          type: "video",
+        });
+        return;
+      }
+
+      if (extension === "pdf" || file.type === "application/pdf") {
+        resolve({
+          title,
+          content: `PDF uploaded: ${file.name} (${Math.max(1, Math.round(file.size / 1024))} KB). Treat this document as study material for summarization and quiz generation.`,
+          type: "pdf",
+        });
+        return;
+      }
+
+      const reader = new FileReader();
+      reader.onload = () => {
+        const content = String(reader.result ?? "").trim();
+        resolve({
+          title,
+          content: content || `Uploaded file: ${file.name}`,
+          type: "text",
+        });
+      };
+      reader.onerror = () => reject(new Error("Unable to read the selected file."));
+      reader.readAsText(file);
+    });
+
+  const handleFileUpload = async (event: ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    event.target.value = "";
+    if (!file) return;
+
+    setUploadingSource(true);
+    try {
+      const uploaded = await readUploadedFile(file);
+      await persistSources([...sources, createSource(uploaded.title, uploaded.content, uploaded.type)]);
+    } catch (error) {
+      const text = error instanceof Error ? error.message : "Unable to upload the selected file.";
+      toast.error(text);
+    } finally {
+      setUploadingSource(false);
+    }
+  };
+
+  const handleWebSearch = async (mode: "web" | "smart") => {
+    const query = webSearchQuery.trim() || course;
+    if (!query) {
+      toast.error("Enter a topic to search the web.");
+      return;
+    }
+
+    setWebSearching(true);
+    try {
+      const found = await searchWebSources({
+        query,
+        course,
+        mode,
+        limit: mode === "smart" ? 5 : 3,
+      });
+
+      if (found.length === 0) {
+        toast.info("No web sources found. Try a broader search term.");
+        return;
+      }
+
+      await persistSources([...sources, ...found], false);
+      setWebSearchQuery("");
+      toast.success(`${found.length} web source${found.length === 1 ? "" : "s"} added`);
+    } catch (error) {
+      const text = error instanceof Error ? error.message : "Web search failed.";
+      toast.error(text);
+    } finally {
+      setWebSearching(false);
     }
   };
 
@@ -330,28 +459,82 @@ export default function AiStudyAssistancePage() {
     setSources((prev) => prev.filter((source) => source.id !== id));
   };
 
+  const generateStudioAsset = async (title: string) => {
+    const slug = STUDIO_SLUGS[title] ?? "chat";
+    const topicHint = sources[0]?.title || input.trim() || course;
+
+    setSelectedStudio(slug);
+    setActiveStudioLabel(title);
+    setStudioGenerating(true);
+
+    try {
+      const response = await askStudyAssistant({
+        message: `Create a ${title.toLowerCase()} about ${topicHint} using my uploaded sources.`,
+        studentName,
+        course,
+        batch,
+        studio: slug,
+        sources,
+      });
+
+      setStudioOutput(response);
+
+      if (response.demo) {
+        toast.info("Running in demo mode. Add XAI_API_KEY and GEMINI_API_KEY to the backend for live AI.");
+      } else {
+        toast.success(`${title} ready in Studio`);
+      }
+    } catch (error) {
+      const text = error instanceof Error ? error.message : "Unable to generate this studio asset.";
+      toast.error(text);
+    } finally {
+      setStudioGenerating(false);
+      setActiveStudioLabel(null);
+    }
+  };
+
   const handleStudioClick = (title: string) => {
     const slug = STUDIO_SLUGS[title] ?? "chat";
     setSelectedStudio(slug);
-    void submitMessage(`Generate a ${title.toLowerCase()} for my current topic.`, slug);
+    void generateStudioAsset(title);
   };
 
   return (
     <div className="min-w-0 space-y-4">
-      <div className="grid gap-4 xl:grid-cols-[minmax(240px,280px)_minmax(0,1.6fr)_minmax(240px,300px)]">
-        <Card className="flex min-h-[720px] overflow-hidden rounded-[1.75rem] border-white/10 bg-card/90 py-0 shadow-[0_20px_60px_rgba(0,0,0,0.25)] backdrop-blur-xl">
+      <input
+        ref={fileInputRef}
+        type="file"
+        accept=".txt,.md,.csv,.json,.pdf,audio/*,video/*"
+        className="hidden"
+        onChange={(event) => void handleFileUpload(event)}
+      />
+
+      <ResizablePanelGroup direction="horizontal" className="min-h-[720px] gap-3 rounded-[1.75rem]">
+        <ResizablePanel defaultSize={22} minSize={18} maxSize={34}>
+        <Card className="flex h-full min-h-[720px] overflow-hidden rounded-[1.75rem] border-white/10 bg-card/90 py-0 shadow-[0_20px_60px_rgba(0,0,0,0.25)] backdrop-blur-xl">
           <div className="flex min-h-0 flex-1 flex-col">
             <SectionTitle label="Sources" icon={PanelLeft} />
 
             <div className="flex min-h-0 flex-1 flex-col gap-4 px-4 py-4">
-              <Button
-                variant="outline"
-                className="h-11 w-full justify-center rounded-full border-white/10 bg-background/40 text-base font-semibold shadow-none hover:bg-accent/60"
-                onClick={() => setShowSourceForm((value) => !value)}
-              >
-                <Plus className="h-4 w-4" />
-                Add sources
-              </Button>
+              <div className="grid grid-cols-2 gap-2">
+                <Button
+                  variant="outline"
+                  className="h-11 justify-center rounded-full border-white/10 bg-background/40 text-sm font-semibold shadow-none hover:bg-accent/60"
+                  onClick={() => setShowSourceForm((value) => !value)}
+                >
+                  <Plus className="h-4 w-4" />
+                  Paste note
+                </Button>
+                <Button
+                  variant="outline"
+                  className="h-11 justify-center rounded-full border-white/10 bg-background/40 text-sm font-semibold shadow-none hover:bg-accent/60"
+                  disabled={uploadingSource}
+                  onClick={() => fileInputRef.current?.click()}
+                >
+                  {uploadingSource ? <Loader2 className="h-4 w-4 animate-spin" /> : <Upload className="h-4 w-4" />}
+                  Upload file
+                </Button>
+              </div>
 
               {showSourceForm ? (
                 <div className="space-y-3 rounded-[1.5rem] border border-white/10 bg-background/40 p-3">
@@ -381,13 +564,37 @@ export default function AiStudyAssistancePage() {
 
               <div className="rounded-[1.5rem] border border-white/10 bg-background/40 p-3">
                 <p className="text-sm text-muted-foreground">Search the web for new sources</p>
+                <Input
+                  value={webSearchQuery}
+                  onChange={(event) => setWebSearchQuery(event.target.value)}
+                  placeholder={`Search ${course}`}
+                  className="mt-3 rounded-full border-white/10 bg-background/60"
+                  onKeyDown={(event) => {
+                    if (event.key === "Enter") {
+                      event.preventDefault();
+                      void handleWebSearch("web");
+                    }
+                  }}
+                />
                 <div className="mt-4 flex items-center gap-2">
-                  <Button variant="outline" size="sm" className="rounded-full border-white/10 bg-background/60 px-3">
-                    <Globe className="h-4 w-4" />
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="rounded-full border-white/10 bg-background/60 px-3"
+                    disabled={webSearching}
+                    onClick={() => void handleWebSearch("web")}
+                  >
+                    {webSearching ? <Loader2 className="h-4 w-4 animate-spin" /> : <Globe className="h-4 w-4" />}
                     <span className="text-xs">Web</span>
                   </Button>
-                  <Button variant="outline" size="sm" className="rounded-full border-white/10 bg-background/60 px-3">
-                    <Sparkles className="h-4 w-4" />
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="rounded-full border-white/10 bg-background/60 px-3"
+                    disabled={webSearching}
+                    onClick={() => void handleWebSearch("smart")}
+                  >
+                    {webSearching ? <Loader2 className="h-4 w-4 animate-spin" /> : <Sparkles className="h-4 w-4" />}
                     <span className="text-xs">Smart</span>
                   </Button>
                 </div>
@@ -429,8 +636,12 @@ export default function AiStudyAssistancePage() {
             </div>
           </div>
         </Card>
+        </ResizablePanel>
 
-        <Card className="flex min-h-[720px] overflow-hidden rounded-[1.75rem] border-white/10 bg-card/90 py-0 shadow-[0_20px_60px_rgba(0,0,0,0.25)] backdrop-blur-xl">
+        <ResizableHandle withHandle className="bg-transparent" />
+
+        <ResizablePanel defaultSize={46} minSize={34}>
+        <Card className="flex h-full min-h-[720px] overflow-hidden rounded-[1.75rem] border-white/10 bg-card/90 py-0 shadow-[0_20px_60px_rgba(0,0,0,0.25)] backdrop-blur-xl">
           <div className="flex min-h-0 flex-1 flex-col">
             <div className="flex items-center justify-between gap-3 border-b border-white/5 px-4 py-3">
               <div>
@@ -554,8 +765,12 @@ export default function AiStudyAssistancePage() {
             </div>
           </div>
         </Card>
+        </ResizablePanel>
 
-        <Card className="flex min-h-[720px] overflow-hidden rounded-[1.75rem] border-white/10 bg-card/90 py-0 shadow-[0_20px_60px_rgba(0,0,0,0.25)] backdrop-blur-xl">
+        <ResizableHandle withHandle className="bg-transparent" />
+
+        <ResizablePanel defaultSize={32} minSize={24} maxSize={42}>
+        <Card className="flex h-full min-h-[720px] overflow-hidden rounded-[1.75rem] border-white/10 bg-card/90 py-0 shadow-[0_20px_60px_rgba(0,0,0,0.25)] backdrop-blur-xl">
           <div className="flex min-h-0 flex-1 flex-col">
             <SectionTitle label="Studio" icon={Menu} />
 
@@ -578,12 +793,17 @@ export default function AiStudyAssistancePage() {
                     <button
                       key={item.title}
                       type="button"
-                      disabled={loading}
+                      disabled={loading || studioGenerating}
                       onClick={() => handleStudioClick(item.title)}
                       className={`group relative overflow-hidden rounded-[1.25rem] border p-3 text-left transition-transform hover:-translate-y-0.5 ${
                         active ? "border-primary/40 ring-1 ring-primary/30" : "border-white/10"
                       } bg-gradient-to-br ${item.accent}`}
                     >
+                      {(studioGenerating && activeStudioLabel === item.title) ? (
+                        <span className="absolute inset-0 flex items-center justify-center bg-background/55 backdrop-blur-sm">
+                          <Loader2 className="h-5 w-5 animate-spin text-primary" />
+                        </span>
+                      ) : null}
                       <div className="flex items-start justify-between gap-2">
                         <div className="space-y-2">
                           <div className="flex items-center gap-2">
@@ -611,28 +831,29 @@ export default function AiStudyAssistancePage() {
               </div>
 
               <div className="mt-auto border-t border-white/5 pt-4">
-                <StudioOutputPanel output={studioOutput} />
+                <StudioOutputPanel output={studioOutput} loading={studioGenerating} activeLabel={activeStudioLabel} />
 
                 <div className="mt-4 flex flex-wrap items-center gap-3">
-                  <Button className="rounded-full px-5" onClick={() => setShowSourceForm(true)}>
-                    <Plus className="h-4 w-4" />
-                    Add note
+                  <Button className="rounded-full px-5" onClick={() => fileInputRef.current?.click()} disabled={uploadingSource}>
+                    {uploadingSource ? <Loader2 className="h-4 w-4 animate-spin" /> : <Upload className="h-4 w-4" />}
+                    Upload
                   </Button>
                   <Button
                     variant="outline"
                     className="rounded-full border-white/10 bg-background/40 px-5"
-                    disabled={loading}
-                    onClick={() => void submitMessage("Generate a study summary from my sources and current topic.")}
+                    disabled={loading || studioGenerating}
+                    onClick={() => void generateStudioAsset(studioItems.find((item) => STUDIO_SLUGS[item.title] === selectedStudio)?.title ?? "Reports")}
                   >
                     <Sparkles className="h-4 w-4" />
-                    Generate
+                    Regenerate
                   </Button>
                 </div>
               </div>
             </div>
           </div>
         </Card>
-      </div>
+        </ResizablePanel>
+      </ResizablePanelGroup>
     </div>
   );
 }

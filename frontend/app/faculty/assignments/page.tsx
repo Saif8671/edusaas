@@ -27,7 +27,7 @@ import { assignmentStatusStyles as statusStyles } from "@/lib/status-styles";
 import { cn } from "@/lib/utils";
 import { toast } from "@/lib/toast";
 import { buildAssignmentFollowUpText, deliverWhatsAppNotification } from "@/lib/notifications";
-import { assignmentStatusIcons as statusIcons, computeAssignmentMetrics, formatAssignmentDeadline } from "@/lib/assignments";
+import { assignmentStatusIcons as statusIcons, computeAssignmentMetrics, filterStudentsForAssignment, formatAssignmentDeadline } from "@/lib/assignments";
 
 type AssignmentForm = {
   title: string;
@@ -140,9 +140,7 @@ export default function FacultyAssignments() {
     const now = new Date();
 
     return assignments.flatMap((assignment) => {
-      const enrolled = students.filter(
-        (student) => student.course === assignment.course && (!assignment.batch || student.batch === assignment.batch),
-      );
+      const enrolled = filterStudentsForAssignment(students, assignment, batches);
       const submissions = assignment.submissions ?? [];
       const deadlineDate = getDeadlineDate(assignment.deadline);
       const deadlinePassed = deadlineDate ? now > deadlineDate : false;

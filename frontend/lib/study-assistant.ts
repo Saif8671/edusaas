@@ -140,6 +140,27 @@ export async function summarizeStudySources(sources: StudySource[]): Promise<Stu
   return data.sources ?? sources;
 }
 
+export async function searchWebSources(payload: {
+  query: string;
+  course?: string;
+  mode?: "web" | "smart";
+  limit?: number;
+}): Promise<StudySource[]> {
+  const response = await fetch("/api/study-assistant/web-search", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(payload),
+  });
+
+  const data = (await response.json()) as { sources?: StudySource[]; error?: string };
+
+  if (!response.ok) {
+    throw new Error(data.error || "Unable to search the web.");
+  }
+
+  return data.sources ?? [];
+}
+
 export function createSource(title: string, content: string, type: StudySource["type"] = "text"): StudySource {
   return {
     id: `src-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,

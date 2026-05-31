@@ -12,7 +12,7 @@ import { PageHeader } from "@/components/app/page-header";
 import { EmptyState } from "@/components/app/empty-state";
 import { assignmentStatusStyles } from "@/lib/status-styles";
 import { toast } from "@/lib/toast";
-import { formatAssignmentDeadline } from "@/lib/assignments";
+import { formatAssignmentDeadline, matchesStudentEnrollment } from "@/lib/assignments";
 
 type SubmissionDraft = {
   notes: string;
@@ -23,21 +23,15 @@ function getSubmissionByStudent(assignment: AssignmentData, studentId: string) {
   return assignment.submissions?.find((submission) => submission.studentId === studentId) ?? null;
 }
 
-function matchesStudentEnrollment(assignment: AssignmentData, profile: { course: string; batch: string }) {
-  if (assignment.course !== profile.course) return false;
-  if (assignment.batch && assignment.batch !== profile.batch) return false;
-  return true;
-}
-
 export default function StudentAssignments() {
-  const { currentUser, students, assignments, submitAssignment, addNotification } = useAppStore();
+  const { currentUser, students, assignments, batches, submitAssignment, addNotification } = useAppStore();
   const profile = useMemo(() => students.find((student) => student.id === currentUser?.id) ?? students[0], [currentUser?.id, students]);
   const [drafts, setDrafts] = useState<Record<string, SubmissionDraft>>({});
 
   const myAssignments = useMemo(() => {
     if (!profile) return assignments;
-    return assignments.filter((assignment) => matchesStudentEnrollment(assignment, profile));
-  }, [assignments, profile]);
+    return assignments.filter((assignment) => matchesStudentEnrollment(assignment, profile, batches));
+  }, [assignments, batches, profile]);
 
   const previousSubmissions = useMemo(() => {
     if (!profile) return [];

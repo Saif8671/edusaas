@@ -64,16 +64,7 @@ function buildStartTime(date?: string, time?: string) {
   return `${date}T${normalizedTime}`;
 }
 
-async function getZoomAccessToken() {
-  const directToken = process.env.ZOOM_ACCESS_TOKEN?.trim();
-  if (directToken) {
-    return {
-      access_token: directToken,
-      token_type: "bearer",
-      expires_in: 3600,
-    } satisfies ZoomTokenResponse;
-  }
-
+async function fetchS2SToken() {
   const accountId = process.env.ZOOM_S2S_ACCOUNT_ID;
   const clientId = process.env.ZOOM_S2S_CLIENT_ID;
   const clientSecret = process.env.ZOOM_S2S_CLIENT_SECRET;
@@ -99,6 +90,75 @@ async function getZoomAccessToken() {
   }
 
   return (await response.json()) as ZoomTokenResponse;
+}
+
+async function getZoomAccessToken() {
+  const hasS2S = Boolean(
+    process.env.ZOOM_S2S_ACCOUNT_ID &&
+      process.env.ZOOM_S2S_CLIENT_ID &&
+      process.env.ZOOM_S2S_CLIENT_SECRET,
+  );
+
+  if (hasS2S) {
+    return fetchS2SToken();
+  }
+
+  const directToken = process.env.ZOOM_ACCESS_TOKEN?.trim();
+  if (directToken) {
+    return {
+      access_token: directToken,
+      token_type: "bearer",
+      expires_in: 3600,
+    } satisfies ZoomTokenResponse;
+  }
+
+  return null;
+}
+
+async function createZoomMeetingRequest(
+  accessToken: string,
+  hostUserId: string,
+  payload: {
+    topic: string;
+    startTime: string;
+    durationMinutes: number;
+    timezone: string;
+    agenda: string;
+  },
+) {
+  return fetch(`https://api.zoom.us/v2/users/${encodeURIComponent(hostUserId)}/meetings`, {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${accessToken}`,
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({
+      topic: payload.topic,
+      type: 2,
+      start_time: payload.startTime,
+      duration: payload.durationMinutes,
+      timezone: payload.timezone,
+      agenda: payload.agenda,
+      default_password: true,
+      settings: {
+        join_before_host: false,
+        waiting_room: true,
+        mute_upon_entry: true,
+        host_video: true,
+        participant_video: false,
+        auto_recording: "none",
+        email_notification: false,
+      },
+    }),
+  });
+}
+
+function isInvalidZoomToken(errorPayload: { raw: string; parsed: ZoomErrorPayload | null }) {
+  return (
+    errorPayload.parsed?.code === 124 ||
+    errorPayload.raw.includes("Invalid access token") ||
+    errorPayload.raw.includes("\"code\":124")
+  );
 }
 
 async function parseZoomError(response: Response) {
@@ -166,49 +226,54 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: "Unable to generate a Zoom access token." }, { status: 500 });
     }
 
-    const meetingResponse = await fetch(
-      `https://api.zoom.us/v2/users/${encodeURIComponent(hostUserId)}/meetings`,
-      {
-        method: "POST",
-        headers: {
-          Authorization: `Bearer ${tokenResponse.access_token}`,
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          topic,
-          type: 2,
-          start_time: startTime,
-          duration: durationMinutes,
-          timezone,
-          agenda,
-          default_password: true,
-          settings: {
-            join_before_host: false,
-            waiting_room: true,
-            mute_upon_entry: true,
-            host_video: true,
-            participant_video: false,
-            auto_recording: "none",
-            email_notification: false,
-          },
-        }),
-      },
+    const meetingPayload = {
+      topic,
+      startTime,
+      durationMinutes,
+      timezone,
+      agenda,
+    };
+
+    let meetingResponse = await createZoomMeetingRequest(
+      tokenResponse.access_token,
+      hostUserId,
+      meetingPayload,
     );
+
+    if (!meetingResponse.ok) {
+      const errorPayload = await parseZoomError(meetingResponse);
+
+      if (isInvalidZoomToken(errorPayload)) {
+        const freshToken = await fetchS2SToken();
+        if (freshToken?.access_token && freshToken.access_token !== tokenResponse.access_token) {
+          meetingResponse = await createZoomMeetingRequest(
+            freshToken.access_token,
+            hostUserId,
+            meetingPayload,
+          );
+        }
+      }
+    }
 
     if (!meetingResponse.ok) {
       const errorPayload = await parseZoomError(meetingResponse);
       const missingMeetingScopes = errorPayload.parsed?.code === 4711
         || errorPayload.raw.includes("meeting:write:meeting")
         || errorPayload.raw.includes("meeting:write:meeting:admin");
+      const invalidToken = isInvalidZoomToken(errorPayload);
 
       return NextResponse.json(
         {
           error: missingMeetingScopes
             ? "Unable to create Zoom meeting because the Zoom token does not include meeting write scopes."
-            : "Unable to create Zoom meeting.",
+            : invalidToken
+              ? "Unable to create Zoom meeting because the Zoom access token is invalid or expired."
+              : "Unable to create Zoom meeting.",
           details: missingMeetingScopes
-            ? "Add meeting:write:meeting or meeting:write:meeting:admin to the Zoom app scopes, or provide a pre-scoped ZOOM_ACCESS_TOKEN."
-            : errorPayload.raw,
+            ? "Add meeting:write:meeting or meeting:write:meeting:admin to the Zoom app scopes, or configure ZOOM_S2S_ACCOUNT_ID, ZOOM_S2S_CLIENT_ID, and ZOOM_S2S_CLIENT_SECRET for automatic token refresh."
+            : invalidToken
+              ? "Remove stale ZOOM_ACCESS_TOKEN from your environment or configure Server-to-Server OAuth credentials so a fresh token can be issued automatically."
+              : errorPayload.raw,
         },
         { status: meetingResponse.status },
       );
