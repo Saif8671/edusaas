@@ -119,6 +119,71 @@ function detectIntent(body, message, studio) {
     };
 }
 
+function classifyQuestion(message) {
+    const lower = cleanText(message).toLowerCase();
+
+    if (!lower) {
+        return {
+            mode: 'general',
+            wantsExample: true,
+            wantsSteps: true,
+            wantsDefinition: false,
+            wantsComparison: false,
+            wantsDebugging: false,
+        };
+    }
+
+    const wantsComparison = /\b(compare|difference|versus|vs\.?|better than)\b/.test(lower);
+    const wantsDebugging = /\b(fix|debug|error|issue|bug|not working|trouble)\b/.test(lower);
+    const wantsDefinition = /\b(what is|define|meaning of|describe)\b/.test(lower);
+    const wantsSteps = /\b(how to|how do i|how can i|steps|procedure|process|implement)\b/.test(lower);
+    const wantsExample = /\b(example|instance|use case|illustrate)\b/.test(lower) || !wantsComparison;
+
+    return {
+        mode: wantsDebugging ? 'debugging' : wantsComparison ? 'comparison' : wantsSteps ? 'steps' : wantsDefinition ? 'definition' : 'general',
+        wantsExample,
+        wantsSteps,
+        wantsDefinition,
+        wantsComparison,
+        wantsDebugging,
+    };
+}
+
+function buildFallbackReply(body, course, batch, topic, selectedSources, intent) {
+    const question = cleanText(body.message);
+    const questionFocus = classifyQuestion(question);
+    const sourceTitles = selectedSources.map((source) => source.title);
+    const sourceLine = sourceTitles.length > 0
+        ? `I used ${sourceTitles.slice(0, 2).join(', ')} to ground the explanation.`
+        : 'I used your course context and the question itself to shape the answer.';
+
+    const opening = questionFocus.mode === 'comparison'
+        ? `Here is the direct comparison for **${topic}** in ${course}.`
+        : questionFocus.mode === 'debugging'
+            ? `Here is the fastest way to fix the **${topic}** problem in ${course}.`
+            : questionFocus.mode === 'steps'
+                ? `Here is the step-by-step explanation for **${topic}** in ${course}.`
+                : questionFocus.mode === 'definition'
+                    ? `Here is the direct meaning of **${topic}** in ${course}.`
+                    : `Here is a clear explanation of **${topic}** in ${course}.`;
+
+    const details = [
+        questionFocus.wantsDefinition ? `Definition: ${topic} is the core concept you asked about in ${course}.` : `Core idea: ${topic} is the main topic to focus on in ${course}.`,
+        questionFocus.wantsExample ? `Example: think of one lecture, problem, or workflow where ${topic} is applied in practice.` : null,
+        questionFocus.wantsSteps ? `Approach: start with the definition, then work through one example, then check the common mistake.` : null,
+        questionFocus.wantsDebugging ? `If something is failing, verify the input, the expected output, and the step where the result changes.` : null,
+        batch ? `Context: connect it to your ${batch} class flow.` : null,
+    ].filter(Boolean);
+
+    const nextStep = intent.wantsQuiz
+        ? 'If you want, I can turn this into quiz questions next.'
+        : intent.wantsFlashcards
+            ? 'If you want, I can turn this into flashcards next.'
+            : 'If you want, I can also give a shorter summary, a worked example, or a mini quiz.';
+
+    return [opening, sourceLine, ...details, nextStep].join(' ');
+}
+
 function buildStudioPreview(intent, topic, assets) {
     if (intent.wantsAudio) {
         return { title: `Audio overview: ${topic}`, details: ['Short narration script', 'Plain-language recap', 'Best for commuting'] };
@@ -167,7 +232,7 @@ function buildStudyResponse(body) {
     const intent = detectIntent(body, message, studio);
     const lowerMessage = message.toLowerCase();
 
-    let reply = `Here is a study-focused answer for ${studentName}'s ${course} work on **${topic}**. ${sourceLine}`;
+    let reply = buildFallbackReply(body, course, batch, topic, selectedSources, intent);
 
     if (intent.isTakeTest || intent.wantsQuiz) {
         reply = `I've prepared a ${questionCount}-question test on **${topic}** for ${studentName}. Answer each question first, then check the solutions. Good luck!`;
@@ -324,7 +389,10 @@ Rules:
 
 function buildGrokSystemPrompt(base) {
     return `You are a patient AI study tutor helping ${base.studentName} with ${base.course}.
-Explain clearly, stay accurate, and keep answers concise but useful for revision.
+Answer the user's question directly in the first 1-2 sentences.
+Then explain the topic clearly with 1 simple example, 1 common mistake, and 1 useful next step when appropriate.
+If the question is ambiguous, make your best interpretation and ask only one short clarifying question at the end.
+Keep the reply concise but complete, and do not drift into generic study talk.
 Use markdown lightly when helpful. Never invent citations beyond provided sources.`;
 }
 
@@ -343,7 +411,14 @@ Sources:
 ${sourceContext}
 ${structuredHint}
 
-Write the main assistant reply for the chat panel. If studio assets were generated, briefly introduce them and tell the student how to use them.`;
+Write the main assistant reply for the chat panel.
+Requirements:
+- Answer the exact question first.
+- If the user asks for an explanation, give a clear explanation with a practical example.
+- If the user asks for a fix or solution, give the fix first and then explain why it works.
+- Do not repeat the prompt back to the user.
+- If studio assets were generated, briefly introduce them at the end.
+- Avoid generic filler like "here is a study-focused answer" unless the user asked for a summary.`;
 }
 
 async function generateStructuredAssets(body, base, intent) {
@@ -372,20 +447,26 @@ async function generateStructuredAssets(body, base, intent) {
 }
 
 async function generateChatReply(body, base, structured) {
-    if (!grok.isConfigured()) return base.reply;
+    if (!grok.isConfigured() && !gemini.isConfigured()) return base.reply;
 
     try {
-        const result = await grok.chat([
-            { role: 'system', content: buildGrokSystemPrompt(base) },
-            { role: 'user', content: buildGrokUserPrompt(body, structured || base, structured) },
-        ]);
-        return result.content;
+        if (grok.isConfigured()) {
+            const result = await grok.chat([
+                { role: 'system', content: buildGrokSystemPrompt(base) },
+                { role: 'user', content: buildGrokUserPrompt(body, structured || base, structured) },
+            ], { temperature: 0.25, maxTokens: 1400 });
+            return result.content;
+        }
+        throw new Error('Grok is not configured, falling back to Gemini.');
     } catch (error) {
-        console.warn('[study-assistant] Grok chat failed:', error.message);
+        if (grok.isConfigured()) {
+            console.warn('[study-assistant] Grok chat failed:', error.message);
+        }
 
         if (gemini.isConfigured()) {
             try {
-                const fallback = await gemini.generateContent(buildGrokUserPrompt(body, structured || base, structured));
+                const combinedPrompt = `[System Instructions]: ${buildGrokSystemPrompt(base)}\n\n[User Request]:\n${buildGrokUserPrompt(body, structured || base, structured)}`;
+                const fallback = await gemini.generateContent(combinedPrompt, { temperature: 0.25, maxTokens: 1400 });
                 return fallback.content;
             } catch (geminiError) {
                 console.warn('[study-assistant] Gemini chat fallback failed:', geminiError.message);

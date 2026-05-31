@@ -160,7 +160,9 @@ export default function StudentAssignments() {
               {currentAssignments.map((assignment) => {
                 const draft = drafts[assignment.id] ?? { notes: "", file: null };
                 const existingSubmission = profile ? getSubmissionByStudent(assignment, profile.id) : null;
-                const Icon = assignment.status === "Late" ? Sparkles : FileCheck;
+                const isLate = assignment.deadline && new Date(`${assignment.deadline}T23:59:59`) < new Date();
+                const studentStatus = isLate ? "Late" : "Pending";
+                const Icon = studentStatus === "Late" ? Sparkles : FileCheck;
                 const isResubmit = Boolean(existingSubmission);
 
                 return (
@@ -171,8 +173,8 @@ export default function StudentAssignments() {
                         <h3 className="mt-1 text-base font-semibold">{assignment.title}</h3>
                         <p className="mt-1 text-sm text-muted-foreground">Due {formatAssignmentDeadline(assignment.deadline)}</p>
                       </div>
-                      <Badge variant="outline" className={assignmentStatusStyles[assignment.status]}>
-                        {assignment.status}
+                      <Badge variant="outline" className={assignmentStatusStyles[studentStatus]}>
+                        {studentStatus}
                       </Badge>
                     </div>
 

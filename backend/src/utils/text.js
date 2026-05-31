@@ -14,9 +14,21 @@ function titleCase(value) {
 
 function extractTopic(message, course) {
     const cleaned = cleanText(message);
-    const match = cleaned.match(/(?:topic|on|about)\s+["']?([^"'.?!]+)["']?/i);
-    if (match) return cleanText(match[1]);
-    if (cleaned.length > 0 && cleaned.length < 80) return cleaned;
+    const explicitMatch = cleaned.match(/(?:topic|about|on|for|regarding)\s+["']?([^"'.?!]+)["']?/i);
+    if (explicitMatch) return cleanText(explicitMatch[1]);
+
+    const requestMatch = cleaned.match(/^(?:please\s+)?(?:can you|could you|would you|help me|help|fix|solve|explain|describe|define|summarize|summarise|teach|learn|compare|give me|tell me|what is|what are|how to|how do i|how can i)\s+(.+)$/i);
+    if (requestMatch) {
+        const topic = cleanText(requestMatch[1]).replace(/[?.!]+$/g, "");
+        if (topic) return topic;
+    }
+
+    const concise = cleaned.replace(/\s+/g, " ");
+    const looksLikeTopic = concise.length > 0
+        && concise.length < 80
+        && !/\b(please|help|explain|teach|learn|fix|solve|what|how|why|compare)\b/i.test(concise);
+    if (looksLikeTopic) return concise;
+
     return course || 'the lesson';
 }
 

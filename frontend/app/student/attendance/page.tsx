@@ -8,7 +8,7 @@ import { useAppStore } from "@/lib/store";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 
-export default function StudentAttendance() {
+export default function StudentAttendance({ standalone = true }: { standalone?: boolean }) {
   const { students } = useAppStore();
   const profile = students.find((student) => student.id === "STU-001") || students[0];
 
@@ -36,14 +36,8 @@ export default function StudentAttendance() {
     [profile],
   );
 
-  return (
-    <div className="page-shell">
-      <PageHeader
-        hideTitle
-        title="Attendance"
-        description="Your attendance trends and monthly presence."
-      />
-
+  const content = (
+    <>
       <div className="grid gap-6 lg:grid-cols-[0.95fr_1.05fr]">
         <Card className="glass-card border bg-card/40 backdrop-blur-md">
           <CardHeader>
@@ -104,7 +98,7 @@ export default function StudentAttendance() {
         </Card>
       </div>
 
-      <Card className="glass-card border bg-card/40 backdrop-blur-md">
+      <Card className="glass-card border bg-card/40 backdrop-blur-md mt-6">
         <CardHeader>
           <CardTitle>Monthly attendance summary</CardTitle>
           <CardDescription>Presence count per month shown as bars.</CardDescription>
@@ -121,6 +115,21 @@ export default function StudentAttendance() {
           </ResponsiveContainer>
         </CardContent>
       </Card>
+    </>
+  );
+
+  if (!standalone) {
+    return <div className="space-y-6">{content}</div>;
+  }
+
+  return (
+    <div className="page-shell">
+      <PageHeader
+        hideTitle
+        title="Attendance"
+        description="Your attendance trends and monthly presence."
+      />
+      {content}
     </div>
   );
 }

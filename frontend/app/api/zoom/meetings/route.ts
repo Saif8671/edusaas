@@ -239,11 +239,12 @@ export async function POST(request: Request) {
       hostUserId,
       meetingPayload,
     );
+    let meetingErrorPayload: Awaited<ReturnType<typeof parseZoomError>> | null = null;
 
     if (!meetingResponse.ok) {
-      const errorPayload = await parseZoomError(meetingResponse);
+      meetingErrorPayload = await parseZoomError(meetingResponse);
 
-      if (isInvalidZoomToken(errorPayload)) {
+      if (isInvalidZoomToken(meetingErrorPayload)) {
         const freshToken = await fetchS2SToken();
         if (freshToken?.access_token && freshToken.access_token !== tokenResponse.access_token) {
           meetingResponse = await createZoomMeetingRequest(
@@ -251,16 +252,17 @@ export async function POST(request: Request) {
             hostUserId,
             meetingPayload,
           );
+          meetingErrorPayload = null;
         }
       }
     }
 
     if (!meetingResponse.ok) {
-      const errorPayload = await parseZoomError(meetingResponse);
-      const missingMeetingScopes = errorPayload.parsed?.code === 4711
-        || errorPayload.raw.includes("meeting:write:meeting")
-        || errorPayload.raw.includes("meeting:write:meeting:admin");
-      const invalidToken = isInvalidZoomToken(errorPayload);
+      meetingErrorPayload ??= await parseZoomError(meetingResponse);
+      const missingMeetingScopes = meetingErrorPayload.parsed?.code === 4711
+        || meetingErrorPayload.raw.includes("meeting:write:meeting")
+        || meetingErrorPayload.raw.includes("meeting:write:meeting:admin");
+      const invalidToken = isInvalidZoomToken(meetingErrorPayload);
 
       return NextResponse.json(
         {
@@ -273,7 +275,7 @@ export async function POST(request: Request) {
             ? "Add meeting:write:meeting or meeting:write:meeting:admin to the Zoom app scopes, or configure ZOOM_S2S_ACCOUNT_ID, ZOOM_S2S_CLIENT_ID, and ZOOM_S2S_CLIENT_SECRET for automatic token refresh."
             : invalidToken
               ? "Remove stale ZOOM_ACCESS_TOKEN from your environment or configure Server-to-Server OAuth credentials so a fresh token can be issued automatically."
-              : errorPayload.raw,
+              : meetingErrorPayload.raw,
         },
         { status: meetingResponse.status },
       );

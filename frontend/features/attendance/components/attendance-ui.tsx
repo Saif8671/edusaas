@@ -93,9 +93,9 @@ export function BatchMiniCard({ batch }: { batch: BatchCard }) {
       </div>
       <div className="mt-3 flex items-end justify-between gap-2">
         <div className="grid flex-1 grid-cols-3 gap-1.5 text-center text-[11px] sm:text-xs">
-          <div className="rounded-lg bg-background/60 px-1 py-1.5 font-medium text-emerald-600">{batch.present} in</div>
-          <div className="rounded-lg bg-background/60 px-1 py-1.5 font-medium text-rose-600">{batch.absent} out</div>
-          <div className="rounded-lg bg-background/60 px-1 py-1.5 font-medium text-amber-600">{batch.late} late</div>
+          <div className="rounded-lg bg-background/80 px-1 py-1.5 font-medium text-emerald-600 dark:bg-background/20 dark:text-emerald-400">{batch.present} in</div>
+          <div className="rounded-lg bg-background/80 px-1 py-1.5 font-medium text-rose-600 dark:bg-background/20 dark:text-rose-400">{batch.absent} out</div>
+          <div className="rounded-lg bg-background/80 px-1 py-1.5 font-medium text-amber-600 dark:bg-background/20 dark:text-amber-400">{batch.late} late</div>
         </div>
         <div className="h-10 w-16 shrink-0 sm:w-20">
           <Sparkline data={batch.trend.map((value) => ({ value }))} stroke={batch.line} />

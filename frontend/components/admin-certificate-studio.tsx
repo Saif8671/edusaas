@@ -334,21 +334,21 @@ export function AdminCertificateStudio({ student }: AdminCertificateStudioProps)
   };
 
   return (
-    <Card className="glass-card rounded-[1.8rem] border-border/60 bg-background/80">
-      <CardHeader className="border-b bg-gradient-to-r from-emerald-500/10 via-transparent to-amber-500/10">
+    <Card className="glass-card overflow-hidden rounded-[2rem] border-border/40 bg-background/60 shadow-2xl backdrop-blur-2xl">
+      <CardHeader className="border-b border-border/30 bg-gradient-to-br from-emerald-500/10 via-teal-500/5 to-background">
         <div className="flex flex-wrap items-start justify-between gap-4">
           <div>
-            <CardTitle className="flex items-center gap-2 text-2xl">
-              <Sparkles className="h-5 w-5 text-primary" />
+            <CardTitle className="flex items-center gap-2 text-2xl font-bold tracking-tight">
+              <Sparkles className="h-6 w-6 text-emerald-500" />
               Certificate Studio
             </CardTitle>
-            <CardDescription>
+            <CardDescription className="text-sm font-medium opacity-80 mt-1">
               Choose a learner, shape the certificate, and issue a downloadable proof of completion.
             </CardDescription>
           </div>
-          <Badge variant="outline" className="rounded-full border-emerald-500/20 bg-emerald-500/5 text-emerald-700">
-            <ShieldCheck className="mr-1 h-3.5 w-3.5" />
-            Live generator
+          <Badge variant="secondary" className="rounded-full bg-emerald-500 text-white shadow-lg shadow-emerald-500/20 px-4 py-1.5 font-bold">
+            <ShieldCheck className="mr-1.5 h-4 w-4" />
+            Live Generator
           </Badge>
         </div>
       </CardHeader>

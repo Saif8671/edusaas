@@ -31,19 +31,19 @@ export default function AdminCertificatesPage() {
   return (
     <div className="space-y-6">
       <div className="grid gap-6 xl:grid-cols-[390px_1fr]">
-        <Card className="glass-card overflow-hidden rounded-[1.8rem] border-border/60 bg-background/80">
-          <CardHeader className="border-b bg-muted/20">
+        <Card className="glass-card overflow-hidden rounded-[2rem] border-border/40 bg-background/60 shadow-2xl backdrop-blur-2xl">
+          <CardHeader className="border-b border-border/30 bg-gradient-to-br from-indigo-500/10 via-purple-500/5 to-background">
             <div className="flex items-center justify-between gap-3">
               <div>
-                <CardTitle className="text-xl">Eligible students</CardTitle>
-                <CardDescription>Students who have reached the 80% progress threshold.</CardDescription>
+                <CardTitle className="text-2xl font-bold tracking-tight text-foreground">Eligible Students</CardTitle>
+                <CardDescription className="text-sm font-medium opacity-80">Students with 80%+ progress ready for graduation.</CardDescription>
               </div>
-              <Badge variant="outline" className="rounded-full">
-                {eligibleStudents.length} ready
+              <Badge variant="outline" className="rounded-full bg-indigo-500/10 px-3 py-1 font-semibold text-indigo-500">
+                {eligibleStudents.length} Ready
               </Badge>
             </div>
           </CardHeader>
-          <CardContent className="space-y-3 p-4">
+          <CardContent className="space-y-4 p-5 max-h-[750px] overflow-y-auto">
             {eligibleStudents.length > 0 ? (
               eligibleStudents.map((student) => {
                 const active = selectedStudent?.id === student.id;
@@ -52,50 +52,54 @@ export default function AdminCertificatesPage() {
                     key={student.id}
                     onClick={() => setSelectedStudentId(student.id)}
                     className={cn(
-                      "w-full rounded-3xl border p-4 text-left transition-all hover:-translate-y-0.5 hover:shadow-md",
-                      active ? "border-emerald-500/40 bg-emerald-500/5" : "border-border bg-background/70",
+                      "w-full rounded-3xl border p-5 text-left transition-all duration-300 hover:-translate-y-1 hover:shadow-xl",
+                      active
+                        ? "border-emerald-500/50 bg-gradient-to-br from-emerald-500/10 to-teal-500/5 ring-1 ring-emerald-500/30"
+                        : "border-border/50 bg-background/50 hover:border-indigo-500/30 hover:bg-gradient-to-br hover:from-indigo-500/5 hover:to-purple-500/5",
                     )}
                   >
                     <div className="flex items-start justify-between gap-4">
                       <div className="min-w-0 flex-1">
                         <div className="flex items-center gap-2">
-                          <p className="truncate font-semibold">{student.name}</p>
-                          <Badge variant="outline" className="rounded-full">
+                          <p className="truncate text-lg font-bold text-foreground">{student.name}</p>
+                          <Badge variant="secondary" className={cn("rounded-full font-bold", active ? "bg-emerald-500 text-white" : "bg-indigo-500 text-white")}>
                             {student.progress}%
                           </Badge>
                         </div>
-                        <p className="mt-1 text-sm text-muted-foreground">{student.course}</p>
-                        <p className="mt-1 text-xs text-muted-foreground">Batch {student.batch}</p>
+                        <p className="mt-1.5 text-sm font-medium text-muted-foreground">{student.course}</p>
+                        <p className="mt-0.5 text-xs font-semibold text-indigo-400/80 uppercase tracking-wider">Batch {student.batch}</p>
                       </div>
-                      <span className="flex h-11 w-11 items-center justify-center rounded-2xl bg-primary/10 text-primary">
-                        <Award className="h-5 w-5" />
+                      <span className={cn("flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl shadow-inner transition-colors", active ? "bg-emerald-500 text-white" : "bg-indigo-500/10 text-indigo-500")}>
+                        <Award className="h-6 w-6" />
                       </span>
                     </div>
 
-                    <div className="mt-4 space-y-2">
-                      <div className="flex items-center justify-between text-xs text-muted-foreground">
+                    <div className="mt-5 space-y-2">
+                      <div className="flex items-center justify-between text-xs font-semibold text-muted-foreground uppercase tracking-widest">
                         <span>Progress</span>
-                        <span>{student.progress}%</span>
+                        <span className={cn(active ? "text-emerald-500" : "text-indigo-500")}>{student.progress}%</span>
                       </div>
-                      <Progress value={student.progress} className="h-2" />
+                      <Progress value={student.progress} className={cn("h-2.5 rounded-full", active ? "[&>div]:bg-emerald-500" : "[&>div]:bg-indigo-500")} />
                     </div>
 
-                    <div className="mt-4 flex items-center justify-between">
-                      <span className="text-xs uppercase tracking-[0.18em] text-muted-foreground">Ready to issue</span>
-                      <span className="flex items-center gap-1 text-xs font-medium text-emerald-600">
-                        <ShieldCheck className="h-3.5 w-3.5" />
-                        Verified
+                    <div className="mt-5 flex items-center justify-between rounded-xl bg-background/50 p-2.5 backdrop-blur-md">
+                      <span className="text-[10px] font-bold uppercase tracking-[0.2em] text-muted-foreground">Status</span>
+                      <span className="flex items-center gap-1.5 text-xs font-bold text-emerald-500">
+                        <ShieldCheck className="h-4 w-4" />
+                        VERIFIED
                       </span>
                     </div>
                   </button>
                 );
               })
             ) : (
-              <div className="rounded-3xl border border-dashed bg-muted/20 p-8 text-center">
-                <WandSparkles className="mx-auto h-10 w-10 text-muted-foreground" />
-                <p className="mt-4 text-base font-medium">No students are ready yet.</p>
-                <p className="mt-2 text-sm text-muted-foreground">
-                  Certificates will appear here as soon as students cross the 80% completion threshold.
+              <div className="flex flex-col items-center justify-center rounded-3xl border border-dashed border-border/60 bg-muted/10 p-10 text-center backdrop-blur-sm">
+                <div className="flex h-16 w-16 items-center justify-center rounded-full bg-indigo-500/10 mb-4">
+                  <WandSparkles className="h-8 w-8 text-indigo-500" />
+                </div>
+                <p className="text-lg font-bold text-foreground">No students ready</p>
+                <p className="mt-2 text-sm font-medium text-muted-foreground max-w-[250px]">
+                  Certificates unlock automatically when progress hits 80%.
                 </p>
               </div>
             )}

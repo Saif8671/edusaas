@@ -42,10 +42,10 @@ import {
 } from "@/lib/study-assistant";
 
 const promptSuggestions = [
-  "Start a project",
-  "Learn or understand something",
-  "Create a study plan",
-  "Summarize my notes",
+  "Explain this topic with an example",
+  "Give me the direct answer first",
+  "Turn this into a simple study plan",
+  "Help me fix this problem",
 ];
 
 const studioItems = [
@@ -664,7 +664,7 @@ export default function AiStudyAssistancePage() {
                           Let&apos;s start your notebook...
                         </h2>
                         <p className="max-w-xl text-sm leading-7 text-muted-foreground sm:text-base">
-                          Ask questions, upload notes, and generate quizzes, flashcards, slides, and more with Grok and Gemini.
+                          Ask one clear question, upload notes, and generate quizzes, flashcards, slides, and more with Grok and Gemini.
                         </p>
                       </div>
                     </div>
@@ -743,7 +743,7 @@ export default function AiStudyAssistancePage() {
                           void submitMessage(input);
                         }
                       }}
-                      placeholder="Ask a question or create something"
+                      placeholder="Ask a clear question, like 'Explain machine learning with an example'"
                       className="min-h-[56px] w-full resize-none rounded-2xl border border-transparent bg-transparent px-1 py-1 text-sm text-foreground outline-none placeholder:text-muted-foreground focus:border-transparent focus:ring-0"
                     />
                   </div>
