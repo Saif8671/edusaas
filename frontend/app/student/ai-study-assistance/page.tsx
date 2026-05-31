@@ -1,999 +1,638 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
-import { useAppStore } from "@/lib/store";
-import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Input } from "@/components/ui/input";
-import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
-import { Label } from "@/components/ui/label";
+import { type ComponentType, useMemo, useRef, useState } from "react";
+
 import {
-  Bot,
-  BookOpen,
-  ChevronRight,
-  FileAudio2,
+  ArrowRight,
   FileText,
-  ListChecks,
-  Map,
+  Globe,
+  Loader2,
+  Menu,
+  MessageSquare,
+  Mic,
+  MoreVertical,
+  MoveRight,
   PanelLeft,
-  PanelRight,
-  PlayCircle,
+  PanelsTopLeft,
   Plus,
-  Search,
   Send,
-  SlidersHorizontal,
   Sparkles,
-  Table2,
-  Upload,
   Video,
-  Presentation,
-  GraduationCap,
+  Workflow,
+  X,
 } from "lucide-react";
-import { cn } from "@/lib/utils";
+
+import { Button } from "@/components/ui/button";
+import { Card } from "@/components/ui/card";
 import { toast } from "@/lib/toast";
-import { Textarea } from "@/components/ui/textarea";
-import { PageHeader } from "@/components/app/page-header";
+import { useAppStore } from "@/lib/store";
+import {
+  askStudyAssistant,
+  createMessage,
+  createSource,
+  STUDIO_SLUGS,
+  summarizeStudySources,
+  type StudyAssistantResponse,
+  type StudyChatMessage,
+  type StudySource,
+} from "@/lib/study-assistant";
 
-type SourceItem = {
-  id: string;
-  title: string;
-  summary: string;
-  type: string;
-  selected: boolean;
-  content?: string;
-};
-
-type ChatMessage = {
-  id: string;
-  role: "user" | "assistant";
-  content: string;
-  time: string;
-  sources?: string[];
-};
-
-type AssistantResponse = {
-  reply?: string;
-  keyPoints?: string[];
-  studySteps?: string[];
-  followUps?: string[];
-  topic?: string;
-  questionCount?: number;
-  quiz?: Array<{ question: string; answer: string; options?: string[] }>;
-  flashcards?: Array<{ front: string; back: string }>;
-  mindMap?: { central: string; branches: Array<{ label: string; children: string[] }> };
-  slides?: Array<{ title: string; bullets: string[] }>;
-  report?: { title: string; sections: Array<{ heading: string; content: string }> };
-  infographic?: { title: string; highlights: Array<{ label: string; value: string }>; steps: string[]; tip: string };
-  dataTable?: { headers: string[]; rows: string[][] };
-  studioPreview?: { title: string; details: string[] };
-  sourcesUsed?: Array<{ title: string }>;
-  modeLabel?: string;
-  teachingMode?: boolean;
-};
-
-type StudioOption = {
-  id: string;
-  label: string;
-  icon: typeof FileText;
-  description: string;
-  beta?: boolean;
-  accent: string;
-};
-
-const studioOptions: StudioOption[] = [
-  { id: "audio-overview", label: "Audio Overview", icon: FileAudio2, description: "Create a spoken revision recap.", accent: "from-emerald-500/20 to-emerald-500/5" },
-  { id: "slide-deck", label: "Slide Deck", icon: Presentation, description: "Turn the lesson into presentation slides.", beta: true, accent: "from-amber-500/20 to-amber-500/5" },
-  { id: "video-overview", label: "Video Overview", icon: Video, description: "Outline a short lesson video.", accent: "from-cyan-500/20 to-cyan-500/5" },
-  { id: "mind-map", label: "Mind Map", icon: Map, description: "Show connected concepts visually.", accent: "from-fuchsia-500/20 to-fuchsia-500/5" },
-  { id: "reports", label: "Reports", icon: FileText, description: "Summarize the topic in report form.", accent: "from-slate-500/20 to-slate-500/5" },
-  { id: "flashcards", label: "Flashcards", icon: BookOpen, description: "Build short revision cards.", accent: "from-orange-500/20 to-orange-500/5" },
-  { id: "quiz", label: "Quiz", icon: ListChecks, description: "Test understanding with quick checks.", accent: "from-rose-500/20 to-rose-500/5" },
-  { id: "infographic", label: "Infographic", icon: Sparkles, description: "Compress the topic into a visual cheat sheet.", beta: true, accent: "from-violet-500/20 to-violet-500/5" },
-  { id: "data-table", label: "Data Table", icon: Table2, description: "Compare concepts in a structured table.", accent: "from-sky-500/20 to-sky-500/5" },
+const promptSuggestions = [
+  "Start a project",
+  "Learn or understand something",
+  "Create a study plan",
+  "Summarize my notes",
 ];
 
-const quickPrompts = ["Explain this simply", "Quiz me", "Create flashcards", "Summarize the lesson"] as const;
+const studioItems = [
+  { title: "Audio Overview", description: "Quick podcast style summary", accent: "from-indigo-500/30 to-emerald-500/30", icon: Mic },
+  { title: "Slide Deck", description: "Turn key points into slides", accent: "from-amber-500/30 to-orange-500/20", icon: PanelsTopLeft, beta: true },
+  { title: "Video Overview", description: "Create a short visual recap", accent: "from-emerald-500/25 to-cyan-500/20", icon: Video },
+  { title: "Mind Map", description: "Connect ideas and concepts", accent: "from-fuchsia-500/20 to-pink-500/20", icon: Workflow },
+  { title: "Reports", description: "Generate a polished brief", accent: "from-yellow-500/20 to-amber-500/20", icon: FileText },
+  { title: "Flashcards", description: "Build quick revision cards", accent: "from-rose-500/20 to-orange-500/20", icon: Sparkles },
+  { title: "Quiz", description: "Check your understanding", accent: "from-sky-500/20 to-blue-500/20", icon: MessageSquare },
+  { title: "Infographic", description: "Turn ideas into visuals", accent: "from-purple-500/20 to-violet-500/20", icon: PanelsTopLeft, beta: true },
+  { title: "Data Table", description: "Organize facts at a glance", accent: "from-slate-500/20 to-zinc-500/20", icon: FileText },
+];
 
-function formatTime(value: string) {
-  return new Intl.DateTimeFormat("en-US", {
-    hour: "numeric",
-    minute: "2-digit",
-  }).format(new Date(value));
+function SectionTitle({ label, icon: Icon }: { label: string; icon: ComponentType<{ className?: string }> }) {
+  return (
+    <div className="flex items-center justify-between gap-3 border-b border-white/5 px-4 py-3">
+      <div className="flex min-w-0 items-center gap-2">
+        <span className="text-sm font-semibold text-foreground">{label}</span>
+      </div>
+      <Button variant="ghost" size="icon-sm" className="rounded-full text-muted-foreground">
+        <Icon className="h-4 w-4" />
+      </Button>
+    </div>
+  );
 }
 
-function buildInitialSources(studentName: string, course: string, batch: string): SourceItem[] {
-  return [
-    {
-      id: "source-syllabus",
-      title: `${course} syllabus`,
-      summary: `Learning outcomes, weekly plan, and assessment goals for ${batch}.`,
-      type: "Course",
-      selected: true,
-    },
-    {
-      id: "source-lecture",
-      title: `${course} lecture notes`,
-      summary: "Key definitions, formulas, and examples covered in today's class.",
-      type: "Notes",
-      selected: true,
-    },
-    {
-      id: "source-assignment",
-      title: `${studentName}'s recent assignment`,
-      summary: "Helpful for spotting weak areas and turning mistakes into revision prompts.",
-      type: "Practice",
-      selected: false,
-    },
-    {
-      id: "source-recap",
-      title: "Recorded class recap",
-      summary: "A short recording used to revisit important explanations and examples.",
-      type: "Media",
-      selected: false,
-    },
-  ];
-}
-
-function studioPrompt(optionId: string) {
-  switch (optionId) {
-    case "audio-overview":
-      return "Create a short audio overview from my selected sources.";
-    case "slide-deck":
-      return "Turn this topic into a clean slide deck for revision.";
-    case "video-overview":
-      return "Outline a concise video overview for this lesson.";
-    case "mind-map":
-      return "Build a mind map of the concept and its branches.";
-    case "reports":
-      return "Summarize this into a structured study report.";
-    case "flashcards":
-      return "Create flashcards from the selected sources.";
-    case "quiz":
-      return "Quiz me on this topic using the selected sources.";
-    case "infographic":
-      return "Design an infographic-style summary of this topic.";
-    case "data-table":
-      return "Organize this topic into a data table.";
-    default:
-      return "Help me study this topic.";
-  }
-}
-
-export default function StudentAiStudyAssistancePage() {
-  const { currentUser, students } = useAppStore();
-  const profile = useMemo(
-    () => students.find((student) => student.id === currentUser?.id) ?? students[0],
-    [currentUser?.id, students],
-  );
-
-  const initialSources = useMemo(
-    () => buildInitialSources(profile?.name ?? "Student", profile?.course ?? "your course", profile?.batch ?? "your batch"),
-    [profile?.batch, profile?.course, profile?.name],
-  );
-
-  const [sources, setSources] = useState<SourceItem[]>(initialSources);
-  const [sourceSearch, setSourceSearch] = useState("");
-  const [newSource, setNewSource] = useState("");
-  const [selectedStudio, setSelectedStudio] = useState("audio-overview");
-  const [message, setMessage] = useState("");
-  const [messages, setMessages] = useState<ChatMessage[]>([
-    {
-      id: "welcome",
-      role: "assistant",
-      content: "Ask me anything about your course, then I'll explain it, quiz you, or turn it into study assets.",
-      time: "Just now",
-    },
-  ]);
-  const [lastResponse, setLastResponse] = useState<AssistantResponse | null>(null);
-  const [status, setStatus] = useState("Ready to help");
-  const [sending, setSending] = useState(false);
-  const [testDialogOpen, setTestDialogOpen] = useState(false);
-  const [testTopic, setTestTopic] = useState("");
-  const [testQuestionCount, setTestQuestionCount] = useState("5");
-  const [flippedCards, setFlippedCards] = useState<Record<number, boolean>>({});
-  const [revealedAnswers, setRevealedAnswers] = useState<Record<number, boolean>>({});
-  const newSourceInputRef = useRef<HTMLInputElement>(null);
-  const fileInputRef = useRef<HTMLInputElement>(null);
-
-  useEffect(() => {
-    setSources(initialSources);
-  }, [initialSources]);
-
-  const filteredSources = useMemo(
-    () =>
-      sources.filter((source) =>
-        `${source.title} ${source.summary} ${source.type}`.toLowerCase().includes(sourceSearch.toLowerCase()),
-      ),
-    [sourceSearch, sources],
-  );
-
-  const selectedSources = useMemo(() => sources.filter((source) => source.selected), [sources]);
-  const selectedStudioOption = studioOptions.find((option) => option.id === selectedStudio) ?? studioOptions[0];
-
-  const addSource = () => {
-    const value = newSource.trim();
-    if (!value) return;
-
-    setSources((current) => [
-      {
-        id: `custom-${Date.now()}`,
-        title: value,
-        summary: "Added from your study workspace so the assistant can reference it.",
-        type: "Custom",
-        selected: true,
-      },
-      ...current,
-    ]);
-    setNewSource("");
-    setStatus("Source added");
-  };
-
-  const toggleSource = (id: string) => {
-    setSources((current) => current.map((source) => (source.id === id ? { ...source, selected: !source.selected } : source)));
-  };
-
-  const selectAllSources = () => {
-    setSources((current) => current.map((source) => ({ ...source, selected: true })));
-  };
-
-  const clearSelection = () => {
-    setSources((current) => current.map((source) => ({ ...source, selected: false })));
-  };
-
-  const handleFileUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
-    const file = event.target.files?.[0];
-    if (!file) return;
-
-    const maxSize = 512 * 1024;
-    if (file.size > maxSize) {
-      toast.error("File must be under 512 KB for demo upload.");
-      return;
-    }
-
-    try {
-      const text = await file.text();
-      setSources((current) => [
-        {
-          id: `upload-${Date.now()}`,
-          title: file.name,
-          summary: `Uploaded ${file.type || "file"} — ${Math.round(file.size / 1024)} KB`,
-          type: "Upload",
-          selected: true,
-          content: text.slice(0, 4000),
-        },
-        ...current,
-      ]);
-      setStatus(`Uploaded ${file.name}`);
-      toast.success("File added as source");
-    } catch {
-      toast.error("Could not read the file.");
-    } finally {
-      event.target.value = "";
-    }
-  };
-
-  const handleSend = async (overrideMessage?: string, options?: { testTopic?: string; questionCount?: number; studio?: string }) => {
-    const prompt = (overrideMessage ?? message).trim();
-    if (!prompt || sending) return;
-
-    if (selectedSources.length === 0) {
-      toast.error("Select at least one source for the assistant to use.");
-      return;
-    }
-
-    const userMessage: ChatMessage = {
-      id: `user-${Date.now()}`,
-      role: "user",
-      content: prompt,
-      time: formatTime(new Date().toISOString()),
-    };
-
-    setMessages((current) => [...current, userMessage]);
-    setMessage("");
-    setSending(true);
-    setStatus("Thinking...");
-    setFlippedCards({});
-    setRevealedAnswers({});
-
-    try {
-      const studioMode = options?.studio ?? selectedStudio;
-      const response = await fetch("/api/study-assistant", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          message: prompt,
-          studentName: profile?.name,
-          course: profile?.course,
-          batch: profile?.batch,
-          studio: studioMode,
-          testTopic: options?.testTopic,
-          questionCount: options?.questionCount,
-          sources: selectedSources.map((source) => ({
-            id: source.id,
-            title: source.title,
-            summary: source.summary,
-            type: source.type,
-            content: source.content,
-          })),
-        }),
-      });
-
-      const data = (await response.json()) as AssistantResponse & { error?: string };
-      if (!response.ok) {
-        throw new Error(data.error || "The study assistant could not respond.");
-      }
-
-      const assistantMessage: ChatMessage = {
-        id: `assistant-${Date.now()}`,
-        role: "assistant",
-        content: data.reply || "I prepared a study response, but there was no message text to display.",
-        time: "Just now",
-        sources: data.sourcesUsed?.map((source) => source.title),
-      };
-
-      setMessages((current) => [...current, assistantMessage]);
-      setLastResponse(data);
-      setStatus(data.modeLabel ? `${data.modeLabel} generated` : "Response ready");
-      toast.success("Study response ready");
-    } catch (error) {
-      const fallbackReply = `I couldn't reach the backend assistant, so here's a quick start: focus on ${profile?.course ?? "the lesson"}, review one source, and try a one-minute self-test.`;
-      setMessages((current) => [
-        ...current,
-        {
-          id: `assistant-fallback-${Date.now()}`,
-          role: "assistant",
-          content: fallbackReply,
-          time: "Just now",
-          sources: selectedSources.map((source) => source.title),
-        },
-      ]);
-      setLastResponse({
-        reply: fallbackReply,
-        followUps: ["Try again", "Switch studio mode", "Add more sources"],
-        keyPoints: ["Use the selected sources", "Revise in short bursts", "Test your recall immediately"],
-        studySteps: ["Read one source", "Summarize it aloud", "Ask the assistant to quiz you"],
-        studioPreview: {
-          title: "Fallback study note",
-          details: ["Quick revision", "Offline-safe", "Source-driven"],
-        },
-      });
-      setStatus(error instanceof Error ? error.message : "Assistant fallback used");
-      toast.error("Using offline fallback. Start the backend for live AI.");
-    } finally {
-      setSending(false);
-    }
-  };
-
-  const startTest = () => {
-    const topic = testTopic.trim();
-    const count = Number.parseInt(testQuestionCount, 10);
-    if (!topic) {
-      toast.error("Enter a topic for your test.");
-      return;
-    }
-    setTestDialogOpen(false);
-    setSelectedStudio("quiz");
-    void handleSend(`Take test on topic: ${topic}`, { testTopic: topic, questionCount: count, studio: "quiz" });
-  };
-
-  const renderStudioOutput = () => {
-    if (!lastResponse) return null;
-
-    if (lastResponse.flashcards?.length && (selectedStudio === "flashcards" || lastResponse.modeLabel?.includes("Flashcard"))) {
-      return (
-        <div className="space-y-3">
-          <p className="text-xs uppercase tracking-[0.18em] text-muted-foreground">Flashcards</p>
-          {lastResponse.flashcards.map((card, index) => (
-            <button
-              key={card.front}
-              type="button"
-              onClick={() => setFlippedCards((current) => ({ ...current, [index]: !current[index] }))}
-              className="w-full rounded-2xl border bg-background/80 p-4 text-left transition hover:border-primary/30"
-            >
-              <p className="text-xs text-muted-foreground">{flippedCards[index] ? "Answer" : "Question"}</p>
-              <p className="mt-2 font-medium">{flippedCards[index] ? card.back : card.front}</p>
-            </button>
-          ))}
-        </div>
-      );
-    }
-
-    if (lastResponse.quiz?.length && (selectedStudio === "quiz" || lastResponse.modeLabel?.includes("Test") || lastResponse.modeLabel?.includes("Quiz"))) {
-      return (
-        <div className="space-y-3">
-          <p className="text-xs uppercase tracking-[0.18em] text-muted-foreground">Practice test — {lastResponse.topic ?? "Topic"}</p>
-          {lastResponse.quiz.map((item, index) => (
-            <div key={item.question} className="rounded-2xl border bg-background/80 p-4">
-              <p className="font-medium">Q{index + 1}. {item.question}</p>
-              {item.options?.length ? (
-                <div className="mt-2 space-y-1">
-                  {item.options.map((option) => (
-                    <p key={option} className="text-sm text-muted-foreground">• {option}</p>
-                  ))}
-                </div>
-              ) : null}
-              <Button
-                variant="ghost"
-                size="sm"
-                className="mt-2 rounded-full"
-                onClick={() => setRevealedAnswers((current) => ({ ...current, [index]: !current[index] }))}
-              >
-                {revealedAnswers[index] ? "Hide answer" : "Show answer"}
-              </Button>
-              {revealedAnswers[index] ? <p className="mt-2 text-sm text-emerald-700">{item.answer}</p> : null}
-            </div>
-          ))}
-        </div>
-      );
-    }
-
-    if (lastResponse.mindMap && selectedStudio === "mind-map") {
-      return (
-        <div className="space-y-3">
-          <p className="text-xs uppercase tracking-[0.18em] text-muted-foreground">Mind map</p>
-          <div className="rounded-2xl border bg-primary/5 p-4 text-center">
-            <p className="text-lg font-semibold">{lastResponse.mindMap.central}</p>
+function StudioOutputPanel({ output }: { output: StudyAssistantResponse | null }) {
+  if (!output) {
+    return (
+      <div className="rounded-[1.25rem] border border-dashed border-white/10 bg-background/20 p-4">
+        <div className="flex items-center gap-3">
+          <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-background/60 text-muted-foreground">
+            <FileText className="h-5 w-5" />
           </div>
-          {lastResponse.mindMap.branches.map((branch) => (
-            <div key={branch.label} className="rounded-2xl border bg-background/80 p-3">
-              <p className="font-medium text-primary">{branch.label}</p>
-              <ul className="mt-2 space-y-1 text-sm text-muted-foreground">
-                {branch.children.map((child) => (
-                  <li key={child}>↳ {child}</li>
-                ))}
-              </ul>
+          <div className="min-w-0 flex-1">
+            <p className="truncate text-sm font-semibold text-foreground">Studio outputs appear here</p>
+            <p className="truncate text-xs text-muted-foreground">Add notes, generate assets, or explore another format.</p>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  const { studioPreview, quiz, flashcards, mindMap, slides, report, infographic, dataTable, audioScript, videoOutline } = output;
+
+  return (
+    <div className="space-y-4 rounded-[1.25rem] border border-white/10 bg-background/30 p-4">
+      <div>
+        <p className="text-sm font-semibold text-foreground">{studioPreview.title}</p>
+        <div className="mt-2 flex flex-wrap gap-2">
+          {studioPreview.details.map((detail) => (
+            <span key={detail} className="rounded-full bg-background/60 px-3 py-1 text-xs text-muted-foreground">
+              {detail}
+            </span>
+          ))}
+        </div>
+      </div>
+
+      {output.keyPoints.length > 0 ? (
+        <div>
+          <p className="text-xs font-semibold uppercase tracking-[0.16em] text-muted-foreground">Key points</p>
+          <ul className="mt-2 space-y-1 text-sm text-foreground">
+            {output.keyPoints.map((point) => (
+              <li key={point}>• {point}</li>
+            ))}
+          </ul>
+        </div>
+      ) : null}
+
+      {quiz.length > 0 ? (
+        <div className="space-y-2">
+          <p className="text-xs font-semibold uppercase tracking-[0.16em] text-muted-foreground">Quiz</p>
+          {quiz.slice(0, 3).map((item) => (
+            <div key={item.question} className="rounded-xl border border-white/10 bg-background/40 p-3 text-sm">
+              <p className="font-medium text-foreground">{item.question}</p>
+              <p className="mt-1 text-xs text-muted-foreground">Answer: {item.answer}</p>
             </div>
           ))}
         </div>
-      );
-    }
+      ) : null}
 
-    if (lastResponse.slides?.length && selectedStudio === "slide-deck") {
-      return (
-        <div className="space-y-3">
-          <p className="text-xs uppercase tracking-[0.18em] text-muted-foreground">Slide deck / PPT</p>
-          {lastResponse.slides.map((slide, index) => (
-            <div key={slide.title} className="rounded-2xl border bg-background/80 p-4">
-              <p className="text-xs text-muted-foreground">Slide {index + 1}</p>
-              <p className="mt-1 font-semibold">{slide.title}</p>
-              <ul className="mt-2 space-y-1 text-sm text-muted-foreground">
-                {slide.bullets.map((bullet) => (
-                  <li key={bullet}>• {bullet}</li>
-                ))}
-              </ul>
+      {flashcards.length > 0 ? (
+        <div className="grid gap-2 sm:grid-cols-2">
+          {flashcards.slice(0, 4).map((card) => (
+            <div key={card.front} className="rounded-xl border border-white/10 bg-background/40 p-3 text-sm">
+              <p className="font-medium text-foreground">{card.front}</p>
+              <p className="mt-1 text-xs text-muted-foreground">{card.back}</p>
             </div>
           ))}
         </div>
-      );
-    }
+      ) : null}
 
-    if (lastResponse.report && selectedStudio === "reports") {
-      return (
-        <div className="space-y-3">
-          <p className="text-xs uppercase tracking-[0.18em] text-muted-foreground">Study report</p>
-          <p className="text-lg font-semibold">{lastResponse.report.title}</p>
-          {lastResponse.report.sections.map((section) => (
-            <div key={section.heading} className="rounded-2xl border bg-background/80 p-4">
-              <p className="font-medium">{section.heading}</p>
-              <p className="mt-2 text-sm leading-6 text-muted-foreground">{section.content}</p>
-            </div>
-          ))}
-        </div>
-      );
-    }
-
-    if (lastResponse.infographic && selectedStudio === "infographic") {
-      return (
-        <div className="space-y-3">
-          <p className="text-xs uppercase tracking-[0.18em] text-muted-foreground">Infographic</p>
-          <p className="text-lg font-semibold">{lastResponse.infographic.title}</p>
-          <div className="grid grid-cols-2 gap-2">
-            {lastResponse.infographic.highlights.map((item) => (
-              <div key={item.label} className="rounded-2xl border bg-gradient-to-br from-violet-500/10 to-violet-500/5 p-3">
-                <p className="text-xs text-muted-foreground">{item.label}</p>
-                <p className="mt-1 font-semibold">{item.value}</p>
+      {mindMap?.branches?.length ? (
+        <div>
+          <p className="text-xs font-semibold uppercase tracking-[0.16em] text-muted-foreground">Mind map</p>
+          <p className="mt-1 text-sm font-medium text-foreground">{mindMap.central}</p>
+          <div className="mt-2 grid gap-2 sm:grid-cols-2">
+            {mindMap.branches.map((branch) => (
+              <div key={branch.label} className="rounded-xl border border-white/10 bg-background/40 p-3 text-sm">
+                <p className="font-medium">{branch.label}</p>
+                <p className="mt-1 text-xs text-muted-foreground">{branch.children.join(" · ")}</p>
               </div>
             ))}
           </div>
-          <div className="flex flex-wrap gap-2">
-            {lastResponse.infographic.steps.map((step, index) => (
-              <Badge key={step} variant="outline" className="rounded-full">{index + 1}. {step}</Badge>
-            ))}
-          </div>
-          <p className="text-sm text-muted-foreground">{lastResponse.infographic.tip}</p>
         </div>
-      );
-    }
+      ) : null}
 
-    if (lastResponse.dataTable && selectedStudio === "data-table") {
-      return (
-        <div className="overflow-x-auto rounded-2xl border">
-          <table className="w-full text-sm">
-            <thead>
-              <tr className="border-b bg-muted/40">
-                {lastResponse.dataTable.headers.map((header) => (
-                  <th key={header} className="px-3 py-2 text-left font-medium">{header}</th>
+      {slides.length > 0 ? (
+        <div className="space-y-2">
+          {slides.slice(0, 3).map((slide) => (
+            <div key={slide.title} className="rounded-xl border border-white/10 bg-background/40 p-3 text-sm">
+              <p className="font-medium text-foreground">{slide.title}</p>
+              <p className="mt-1 text-xs text-muted-foreground">{slide.bullets.join(" · ")}</p>
+            </div>
+          ))}
+        </div>
+      ) : null}
+
+      {report?.sections?.length ? (
+        <div className="space-y-2">
+          {report.sections.slice(0, 2).map((section) => (
+            <div key={section.heading} className="rounded-xl border border-white/10 bg-background/40 p-3 text-sm">
+              <p className="font-medium text-foreground">{section.heading}</p>
+              <p className="mt-1 text-xs leading-5 text-muted-foreground">{section.content}</p>
+            </div>
+          ))}
+        </div>
+      ) : null}
+
+      {infographic?.highlights?.length ? (
+        <div className="grid grid-cols-2 gap-2">
+          {infographic.highlights.map((item) => (
+            <div key={item.label} className="rounded-xl border border-white/10 bg-background/40 p-3 text-sm">
+              <p className="text-xs text-muted-foreground">{item.label}</p>
+              <p className="font-medium text-foreground">{item.value}</p>
+            </div>
+          ))}
+        </div>
+      ) : null}
+
+      {dataTable?.rows?.length ? (
+        <div className="overflow-x-auto rounded-xl border border-white/10">
+          <table className="min-w-full text-left text-xs">
+            <thead className="bg-background/60">
+              <tr>
+                {dataTable.headers.map((header) => (
+                  <th key={header} className="px-3 py-2 font-semibold text-foreground">
+                    {header}
+                  </th>
                 ))}
               </tr>
             </thead>
             <tbody>
-              {lastResponse.dataTable.rows.map((row) => (
-                <tr key={row.join("-")} className="border-b">
+              {dataTable.rows.slice(0, 4).map((row) => (
+                <tr key={row.join("-")} className="border-t border-white/5">
                   {row.map((cell) => (
-                    <td key={cell} className="px-3 py-2 text-muted-foreground">{cell}</td>
+                    <td key={cell} className="px-3 py-2 text-muted-foreground">
+                      {cell}
+                    </td>
                   ))}
                 </tr>
               ))}
             </tbody>
           </table>
         </div>
-      );
+      ) : null}
+
+      {audioScript?.length ? (
+        <div className="rounded-xl border border-white/10 bg-background/40 p-3 text-sm">
+          <p className="text-xs font-semibold uppercase tracking-[0.16em] text-muted-foreground">Audio script</p>
+          <div className="mt-2 space-y-1 text-xs text-muted-foreground">
+            {audioScript.map((line) => (
+              <p key={line}>{line}</p>
+            ))}
+          </div>
+        </div>
+      ) : null}
+
+      {videoOutline?.length ? (
+        <div className="space-y-2">
+          {videoOutline.map((scene) => (
+            <div key={scene.scene} className="rounded-xl border border-white/10 bg-background/40 p-3 text-sm">
+              <p className="font-medium text-foreground">{scene.scene}</p>
+              <p className="mt-1 text-xs text-muted-foreground">{scene.notes}</p>
+            </div>
+          ))}
+        </div>
+      ) : null}
+    </div>
+  );
+}
+
+export default function AiStudyAssistancePage() {
+  const { currentUser, students } = useAppStore();
+  const studentProfile = students.find((student) => student.id === currentUser?.id) ?? students[0];
+
+  const [messages, setMessages] = useState<StudyChatMessage[]>([]);
+  const [sources, setSources] = useState<StudySource[]>([]);
+  const [input, setInput] = useState("");
+  const [loading, setLoading] = useState(false);
+  const [selectedStudio, setSelectedStudio] = useState<string>("chat");
+  const [studioOutput, setStudioOutput] = useState<StudyAssistantResponse | null>(null);
+  const [showSourceForm, setShowSourceForm] = useState(false);
+  const [sourceTitle, setSourceTitle] = useState("");
+  const [sourceContent, setSourceContent] = useState("");
+  const chatEndRef = useRef<HTMLDivElement | null>(null);
+
+  const studentName = studentProfile?.name ?? "Student";
+  const course = studentProfile?.course ?? "Your course";
+  const batch = studentProfile?.batch ?? "";
+
+  const hasStarted = messages.length > 0;
+
+  const providerLabel = useMemo(() => {
+    if (!studioOutput?.providers) return null;
+    if (studioOutput.demo) return "Demo mode";
+    const parts = [];
+    if (studioOutput.providers.grok) parts.push("Grok chat");
+    if (studioOutput.providers.gemini) parts.push("Gemini studio");
+    return parts.join(" · ");
+  }, [studioOutput]);
+
+  const scrollToBottom = () => {
+    chatEndRef.current?.scrollIntoView({ behavior: "smooth" });
+  };
+
+  const submitMessage = async (message: string, studio = selectedStudio) => {
+    const trimmed = message.trim();
+    if (!trimmed || loading) return;
+
+    setLoading(true);
+    setMessages((prev) => [...prev, createMessage("user", trimmed)]);
+
+    try {
+      const response = await askStudyAssistant({
+        message: trimmed,
+        studentName,
+        course,
+        batch,
+        studio,
+        sources,
+      });
+
+      setStudioOutput(response);
+      setMessages((prev) => [...prev, createMessage("assistant", response.reply)]);
+      scrollToBottom();
+
+      if (response.demo) {
+        toast.info("Running in demo mode. Add XAI_API_KEY and GEMINI_API_KEY to the backend for live AI.");
+      }
+    } catch (error) {
+      const text = error instanceof Error ? error.message : "Unable to reach the study assistant.";
+      toast.error(text);
+      setMessages((prev) => [...prev, createMessage("assistant", text)]);
+    } finally {
+      setLoading(false);
+      setInput("");
+    }
+  };
+
+  const handleAddSource = async () => {
+    const title = sourceTitle.trim();
+    const content = sourceContent.trim();
+    if (!title || !content) {
+      toast.error("Add both a title and content for the source.");
+      return;
     }
 
-    return null;
+    const nextSources = [...sources, createSource(title, content)];
+    setSources(nextSources);
+    setSourceTitle("");
+    setSourceContent("");
+    setShowSourceForm(false);
+
+    try {
+      const summarized = await summarizeStudySources(nextSources);
+      setSources(summarized);
+      toast.success("Source added");
+    } catch {
+      toast.success("Source added");
+    }
+  };
+
+  const removeSource = (id: string) => {
+    setSources((prev) => prev.filter((source) => source.id !== id));
+  };
+
+  const handleStudioClick = (title: string) => {
+    const slug = STUDIO_SLUGS[title] ?? "chat";
+    setSelectedStudio(slug);
+    void submitMessage(`Generate a ${title.toLowerCase()} for my current topic.`, slug);
   };
 
   return (
-    <div className="page-shell relative isolate min-w-0 overflow-hidden pb-6">
-      <div className="pointer-events-none absolute inset-x-0 top-0 -z-10 h-64 bg-[radial-gradient(circle_at_top_left,rgba(59,130,246,0.12),transparent_35%),radial-gradient(circle_at_top_right,rgba(16,185,129,0.10),transparent_32%),linear-gradient(180deg,rgba(255,255,255,0.7),transparent)] dark:bg-[radial-gradient(circle_at_top_left,rgba(59,130,246,0.18),transparent_35%),radial-gradient(circle_at_top_right,rgba(16,185,129,0.12),transparent_32%),linear-gradient(180deg,rgba(15,23,42,0.18),transparent)]" />
+    <div className="min-w-0 space-y-4">
+      <div className="grid gap-4 xl:grid-cols-[minmax(240px,280px)_minmax(0,1.6fr)_minmax(240px,300px)]">
+        <Card className="flex min-h-[720px] overflow-hidden rounded-[1.75rem] border-white/10 bg-card/90 py-0 shadow-[0_20px_60px_rgba(0,0,0,0.25)] backdrop-blur-xl">
+          <div className="flex min-h-0 flex-1 flex-col">
+            <SectionTitle label="Sources" icon={PanelLeft} />
 
-      <PageHeader
-        hideTitle
-        title="AI Study Assistant"
-        description="Chat with AI using your course sources and generate quizzes, flashcards, and summaries."
-        actions={
-          <div className="flex flex-wrap gap-2">
-            <Button type="button" size="sm" variant="outline" onClick={() => setTestDialogOpen(true)} disabled={sending}>
-              <GraduationCap className="mr-2 h-4 w-4" />
-              Take test
-            </Button>
-            <Button type="button" size="sm" onClick={() => handleSend(studioPrompt(selectedStudio))} disabled={sending}>
-              {sending ? "Generating..." : "Generate"}
-            </Button>
-            <Button
-              type="button"
-              size="sm"
-              variant="outline"
-              onClick={() => {
-                setMessage(studioPrompt("quiz"));
-                setSelectedStudio("quiz");
-              }}
-            >
-              Quick quiz
-            </Button>
-          </div>
-        }
-      />
-
-      <div className="flex flex-wrap gap-3 rounded-2xl border border-border/60 bg-background/70 p-4 text-sm shadow-sm backdrop-blur-sm">
-        <Badge variant="secondary" className="rounded-full">
-          {profile?.course ?? "Your course"}
-        </Badge>
-        <span className="text-muted-foreground">
-          {selectedSources.length} source{selectedSources.length === 1 ? "" : "s"} · {selectedStudioOption.label}
-        </span>
-        <span className="text-muted-foreground">{status}</span>
-      </div>
-
-      <div className="grid min-w-0 grid-cols-1 gap-4 xl:grid-cols-[320px_minmax(0,1fr)_340px] xl:gap-5">
-        <Card className="glass-card min-w-0 overflow-hidden rounded-[1.75rem] border border-border/60 bg-card/85 shadow-[0_20px_60px_-40px_rgba(15,23,42,0.45)] backdrop-blur-md xl:sticky xl:top-6 xl:max-h-[calc(100vh-11rem)] xl:overflow-y-auto">
-          <CardHeader className="space-y-4 border-b border-border/60 bg-background/50">
-            <div className="flex items-center justify-between gap-3">
-              <div>
-                <p className="text-xs font-medium uppercase tracking-[0.18em] text-muted-foreground">Source library</p>
-                <CardTitle className="mt-1 text-xl">Sources</CardTitle>
-                <CardDescription>Pick the notes, files, and lessons the AI should use.</CardDescription>
-              </div>
-              <Button variant="ghost" size="icon" aria-label="Sources panel" disabled title="Panel layout is fixed in this view">
-                <PanelLeft className="h-4 w-4" />
-              </Button>
-            </div>
-
-            <div className="space-y-3">
-              <input ref={fileInputRef} type="file" accept=".txt,.md,.pdf,.doc,.docx,.csv,.json" className="hidden" onChange={handleFileUpload} />
+            <div className="flex min-h-0 flex-1 flex-col gap-4 px-4 py-4">
               <Button
                 variant="outline"
-                className="w-full justify-center rounded-2xl border-dashed bg-background/70"
-                onClick={() => fileInputRef.current?.click()}
+                className="h-11 w-full justify-center rounded-full border-white/10 bg-background/40 text-base font-semibold shadow-none hover:bg-accent/60"
+                onClick={() => setShowSourceForm((value) => !value)}
               >
-                <Upload className="mr-2 h-4 w-4" />
-                Upload notes / file
-              </Button>
-              <Button
-                variant="outline"
-                className="w-full justify-center rounded-2xl border-dashed bg-background/70"
-                onClick={() => newSourceInputRef.current?.focus()}
-              >
-                <Plus className="mr-2 h-4 w-4" />
-                Add topic source
+                <Plus className="h-4 w-4" />
+                Add sources
               </Button>
 
-              <div className="rounded-[1.5rem] border border-border/60 bg-background/80 p-4 shadow-sm">
-                <p className="text-sm font-medium">Add a note or topic as a source</p>
-                <div className="mt-3 flex gap-2">
-                  <Input
-                    ref={newSourceInputRef}
-                    value={newSource}
-                    onChange={(event) => setNewSource(event.target.value)}
-                    placeholder="Paste a topic, note, or URL"
-                    className="h-11 rounded-2xl bg-background/90"
-                    onKeyDown={(event) => {
-                      if (event.key === "Enter") {
-                        event.preventDefault();
-                        addSource();
-                      }
-                    }}
+              {showSourceForm ? (
+                <div className="space-y-3 rounded-[1.5rem] border border-white/10 bg-background/40 p-3">
+                  <input
+                    value={sourceTitle}
+                    onChange={(event) => setSourceTitle(event.target.value)}
+                    placeholder="Source title"
+                    className="w-full rounded-xl border border-white/10 bg-background/60 px-3 py-2 text-sm outline-none"
                   />
-                  <Button onClick={addSource} className="h-11 rounded-2xl px-4">
-                    <Search className="h-4 w-4" />
+                  <textarea
+                    value={sourceContent}
+                    onChange={(event) => setSourceContent(event.target.value)}
+                    placeholder="Paste notes, article text, or lecture summary"
+                    rows={4}
+                    className="w-full resize-none rounded-xl border border-white/10 bg-background/60 px-3 py-2 text-sm outline-none"
+                  />
+                  <div className="flex gap-2">
+                    <Button size="sm" className="rounded-full" onClick={() => void handleAddSource()}>
+                      Save source
+                    </Button>
+                    <Button size="sm" variant="ghost" className="rounded-full" onClick={() => setShowSourceForm(false)}>
+                      Cancel
+                    </Button>
+                  </div>
+                </div>
+              ) : null}
+
+              <div className="rounded-[1.5rem] border border-white/10 bg-background/40 p-3">
+                <p className="text-sm text-muted-foreground">Search the web for new sources</p>
+                <div className="mt-4 flex items-center gap-2">
+                  <Button variant="outline" size="sm" className="rounded-full border-white/10 bg-background/60 px-3">
+                    <Globe className="h-4 w-4" />
+                    <span className="text-xs">Web</span>
+                  </Button>
+                  <Button variant="outline" size="sm" className="rounded-full border-white/10 bg-background/60 px-3">
+                    <Sparkles className="h-4 w-4" />
+                    <span className="text-xs">Smart</span>
                   </Button>
                 </div>
               </div>
 
-              <div className="rounded-[1.5rem] border border-border/60 bg-background/80 p-3 shadow-sm">
-                <label className="mb-2 block text-[11px] font-medium uppercase tracking-[0.18em] text-muted-foreground">
-                  Filter sources
-                </label>
-                <Input
-                  value={sourceSearch}
-                  onChange={(event) => setSourceSearch(event.target.value)}
-                  placeholder="Search notes, files, or source types"
-                  className="h-11 rounded-2xl bg-background/90"
-                />
-              </div>
-
-              <div className="flex items-center justify-between text-sm">
-                <button className="font-medium text-foreground" onClick={selectAllSources}>
-                  Select all
-                </button>
-                <button className="text-muted-foreground transition hover:text-foreground" onClick={clearSelection}>
-                  Clear
-                </button>
-              </div>
-            </div>
-          </CardHeader>
-
-          <CardContent className="space-y-3 p-4">
-            {filteredSources.map((source) => (
-              <button
-                type="button"
-                key={source.id}
-                aria-pressed={source.selected}
-                onClick={() => toggleSource(source.id)}
-                className={cn(
-                  "group flex w-full items-start gap-3 rounded-2xl border p-3 text-left transition-all duration-200",
-                  source.selected
-                    ? "border-primary/30 bg-primary/5 shadow-sm"
-                    : "border-border/60 bg-background/70 hover:-translate-y-0.5 hover:border-primary/20 hover:bg-muted/50",
-                )}
-              >
-                <div
-                  className={cn(
-                    "mt-0.5 flex h-9 w-9 items-center justify-center rounded-xl",
-                    source.selected ? "bg-primary text-primary-foreground" : "bg-muted text-muted-foreground",
-                  )}
-                >
-                  <FileText className="h-4 w-4" />
-                </div>
-                <div className="min-w-0 flex-1">
-                  <div className="flex items-center justify-between gap-2">
-                    <p className="truncate font-medium">{source.title}</p>
-                    <Badge variant="outline" className="rounded-full text-[10px] uppercase tracking-[0.14em]">
-                      {source.type}
-                    </Badge>
-                  </div>
-                  <p className="mt-1 line-clamp-2 text-sm text-muted-foreground">{source.summary}</p>
-                </div>
-                <div
-                  className={cn(
-                    "mt-1 flex h-5 w-5 items-center justify-center rounded-full border",
-                    source.selected ? "border-primary bg-primary text-primary-foreground" : "border-border bg-background",
-                  )}
-                >
-                  <span className={cn("h-2.5 w-2.5 rounded-full", source.selected ? "bg-primary-foreground" : "bg-transparent")} />
-                </div>
-              </button>
-            ))}
-          </CardContent>
-        </Card>
-
-        <Card className="glass-card flex min-w-0 flex-col overflow-hidden rounded-[1.75rem] border border-border/60 bg-card/88 shadow-[0_20px_60px_-40px_rgba(15,23,42,0.45)] backdrop-blur-md xl:max-h-[calc(100vh-11rem)]">
-          <CardHeader className="shrink-0 border-b border-border/60 bg-background/50">
-            <div className="flex items-center justify-between gap-3">
-              <div>
-                <p className="text-xs font-medium uppercase tracking-[0.18em] text-muted-foreground">Conversation</p>
-                <CardTitle className="mt-1 text-lg">Chat</CardTitle>
-                <CardDescription>Ask a question, request a summary, or generate a study asset.</CardDescription>
-              </div>
-              <div className="flex items-center gap-2">
-                <Button
-                  type="button"
-                  variant="ghost"
-                  size="icon"
-                  aria-label="Clear chat"
-                  onClick={() => {
-                    setMessages([
-                      {
-                        id: "welcome",
-                        role: "assistant",
-                        content: "Ask me anything about your course, then I'll explain it, quiz you, or turn it into study assets.",
-                        time: "Just now",
-                      },
-                    ]);
-                    setLastResponse(null);
-                    toast.info("Chat cleared");
-                  }}
-                >
-                  <SlidersHorizontal className="h-4 w-4" />
-                </Button>
-              </div>
-            </div>
-          </CardHeader>
-
-          <CardContent className="flex min-h-0 flex-1 flex-col gap-4 overflow-hidden p-4">
-            <div className="shrink-0 flex items-start justify-between gap-4 rounded-[1.5rem] border border-dashed border-border/60 bg-background/75 p-4 shadow-sm">
-              <div className="flex items-start gap-3">
-                <div className="mt-0.5 flex h-11 w-11 items-center justify-center rounded-2xl bg-primary/10 text-primary shadow-inner">
-                  <Bot className="h-5 w-5" />
-                </div>
-                <div>
-                  <p className="font-semibold">{profile?.course ?? "Study assistant"}</p>
-                  <p className="mt-1 text-sm text-muted-foreground">
-                    Based on {selectedSources.length} selected source{selectedSources.length === 1 ? "" : "s"}, the assistant can explain the topic and create structured revision content.
-                  </p>
-                </div>
-              </div>
-              <Button
-                type="button"
-                variant="outline"
-                className="rounded-full bg-background/80"
-                onClick={() => toast.info(`Studio mode: ${selectedStudioOption.label}`)}
-              >
-                <PlayCircle className="mr-2 h-4 w-4" />
-                Customize
-              </Button>
-            </div>
-
-            {lastResponse ? (
-              <div className="shrink-0 rounded-[1.5rem] border border-border/60 bg-muted/35 p-4 shadow-sm">
-                <div className="flex items-center justify-between gap-4">
-                  <div>
-                    <p className="text-xs uppercase tracking-[0.18em] text-muted-foreground">Latest AI output</p>
-                    <h3 className="mt-1 text-xl font-semibold">{lastResponse.studioPreview?.title ?? "Study response"}</h3>
-                  </div>
-                  <Badge variant="secondary" className="rounded-full">
-                    {lastResponse.modeLabel ?? selectedStudioOption.label}
-                  </Badge>
-                </div>
-
-                <p className="mt-4 text-sm leading-6 text-muted-foreground">{lastResponse.reply}</p>
-
-                {lastResponse.keyPoints?.length ? (
-                  <div className="mt-4 flex flex-wrap gap-2">
-                    {lastResponse.keyPoints.map((point) => (
-                      <Badge key={point} variant="outline" className="rounded-full">
-                        {point}
-                      </Badge>
-                    ))}
-                  </div>
-                ) : null}
-
-                {lastResponse.studySteps?.length ? (
-                  <div className="mt-4 grid gap-2 sm:grid-cols-3">
-                    {lastResponse.studySteps.map((step, index) => (
-                      <div key={step} className="rounded-2xl border border-border/60 bg-background/80 p-3">
-                        <p className="text-[11px] uppercase tracking-[0.18em] text-muted-foreground">Step {index + 1}</p>
-                        <p className="mt-2 text-sm font-medium">{step}</p>
+              {sources.length > 0 ? (
+                <div className="space-y-2 overflow-y-auto">
+                  {sources.map((source) => (
+                    <div key={source.id} className="rounded-[1.25rem] border border-white/10 bg-background/40 p-3">
+                      <div className="flex items-start justify-between gap-2">
+                        <div className="min-w-0">
+                          <p className="truncate text-sm font-semibold text-foreground">{source.title}</p>
+                          <p className="mt-1 line-clamp-3 text-xs leading-5 text-muted-foreground">
+                            {source.summary || source.content}
+                          </p>
+                        </div>
+                        <Button variant="ghost" size="icon-sm" className="rounded-full" onClick={() => removeSource(source.id)}>
+                          <X className="h-4 w-4" />
+                        </Button>
                       </div>
-                    ))}
-                  </div>
-                ) : null}
-              </div>
-            ) : null}
-
-            <div className="min-h-0 flex-1 space-y-3 overflow-y-auto pr-1 scrollbar-thin">
-              {messages.map((chat) => (
-                <div
-                  key={chat.id}
-                  className={cn(
-                    "max-w-[92%] rounded-[1.5rem] border px-4 py-3 shadow-sm",
-                    chat.role === "user"
-                      ? "ml-auto border-primary/20 bg-primary text-primary-foreground"
-                      : "border-border/70 bg-background/85",
-                  )}
-                >
-                  <div className="flex items-center justify-between gap-3 text-[11px] uppercase tracking-[0.18em] opacity-70">
-                    <span>{chat.role === "user" ? "You" : "AI assistant"}</span>
-                    <span>{chat.time}</span>
-                  </div>
-                  <p className="mt-2 whitespace-pre-wrap text-sm leading-6">{chat.content}</p>
-                  {chat.sources?.length ? (
-                    <div className="mt-3 flex flex-wrap gap-2">
-                      {chat.sources.map((source) => (
-                        <Badge key={source} variant="secondary" className="rounded-full">
-                          {source}
-                        </Badge>
-                      ))}
-                    </div>
-                  ) : null}
-                </div>
-              ))}
-            </div>
-
-            <div className="shrink-0 rounded-[1.5rem] border border-border/60 bg-background/85 p-4 shadow-sm">
-              <p className="text-xs uppercase tracking-[0.18em] text-muted-foreground">Quick prompts</p>
-              <div className="mt-3 flex flex-wrap gap-2">
-                {quickPrompts.map((prompt) => (
-                  <Button key={prompt} variant="secondary" className="rounded-full" onClick={() => setMessage(prompt)}>
-                    {prompt}
-                  </Button>
-                ))}
-              </div>
-            </div>
-
-            <div className="shrink-0 rounded-[1.5rem] border border-border/60 bg-background/85 p-3 shadow-sm">
-              <div className="flex items-end gap-3">
-                <div className="flex-1">
-                  <label className="mb-2 block text-xs uppercase tracking-[0.18em] text-muted-foreground">
-                    Ask a question or create something
-                  </label>
-                  <Textarea
-                    value={message}
-                    onChange={(event) => setMessage(event.target.value)}
-                    onKeyDown={(event) => {
-                      if (event.key === "Enter" && !event.shiftKey) {
-                        event.preventDefault();
-                        handleSend();
-                      }
-                    }}
-                    rows={3}
-                    aria-label="Message for study assistant"
-                    placeholder="Ask for an explanation, a quiz, a summary, or a study asset..."
-                    className="min-h-24 resize-none rounded-[1.25rem]"
-                  />
-                </div>
-                <Button onClick={() => handleSend()} disabled={sending} className="h-12 rounded-full px-5 shadow-sm">
-                  <Send className="mr-2 h-4 w-4" />
-                  Send
-                </Button>
-              </div>
-            </div>
-
-            <div className="flex items-center justify-between text-xs text-muted-foreground">
-              <span>{status}</span>
-              <span>{selectedSources.length} source{selectedSources.length === 1 ? "" : "s"} selected</span>
-            </div>
-          </CardContent>
-        </Card>
-
-        <Card className="glass-card min-w-0 overflow-hidden rounded-[1.75rem] border border-border/60 bg-card/85 shadow-[0_20px_60px_-40px_rgba(15,23,42,0.45)] backdrop-blur-md xl:sticky xl:top-6 xl:max-h-[calc(100vh-11rem)] xl:overflow-y-auto">
-          <CardHeader className="border-b border-border/60 bg-background/50">
-            <div className="flex items-center justify-between gap-3">
-              <div>
-                <p className="text-xs font-medium uppercase tracking-[0.18em] text-muted-foreground">Output studio</p>
-                <CardTitle className="mt-1 text-lg">Studio</CardTitle>
-                <CardDescription>Transform the same lesson into different learning formats.</CardDescription>
-              </div>
-              <Button variant="ghost" size="icon" aria-label="Studio panel" disabled title="Studio panel is always visible">
-                <PanelRight className="h-4 w-4" />
-              </Button>
-            </div>
-          </CardHeader>
-
-          <CardContent className="space-y-4 p-4">
-            <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-1">
-              {studioOptions.map((option) => {
-                const Icon = option.icon;
-                const active = option.id === selectedStudio;
-                return (
-                  <button
-                    type="button"
-                    key={option.id}
-                    aria-pressed={active}
-                    onClick={() => {
-                      setSelectedStudio(option.id);
-                      toast.info(`${option.label} mode selected`);
-                    }}
-                    className={cn(
-                      "group rounded-[1.35rem] border p-3 text-left transition-all duration-200",
-                      active
-                        ? "border-primary/30 bg-primary/5 shadow-sm"
-                        : "border-border/70 bg-background/80 hover:-translate-y-0.5 hover:border-primary/20 hover:bg-muted/40",
-                    )}
-                  >
-                    <div className={cn("rounded-[1.1rem] bg-gradient-to-br p-3", option.accent)}>
-                      <div className="flex items-center justify-between gap-2">
-                        <Icon className="h-4 w-4" />
-                        {option.beta ? <Badge className="rounded-full bg-black text-[10px] text-white hover:bg-black">BETA</Badge> : null}
-                      </div>
-                      <p className="mt-3 text-sm font-semibold">{option.label}</p>
-                      <p className="mt-1 text-xs leading-5 text-muted-foreground">{option.description}</p>
-                    </div>
-                    <div className="mt-3 flex items-center justify-end text-muted-foreground">
-                      <ChevronRight className="h-4 w-4" />
-                    </div>
-                  </button>
-                );
-              })}
-            </div>
-
-            {lastResponse?.studioPreview ? (
-              <div className="rounded-[1.35rem] border border-border/60 bg-background/80 p-4 shadow-sm">
-                <p className="text-xs uppercase tracking-[0.18em] text-muted-foreground">Current output preview</p>
-                <h3 className="mt-2 text-lg font-semibold">{lastResponse.studioPreview.title}</h3>
-                <div className="mt-3 space-y-2">
-                  {lastResponse.studioPreview.details.map((detail) => (
-                    <div key={detail} className="flex items-center gap-2 text-sm text-muted-foreground">
-                      <Sparkles className="h-3.5 w-3.5 text-primary" />
-                      <span>{detail}</span>
                     </div>
                   ))}
                 </div>
-                <div className="mt-4">{renderStudioOutput()}</div>
-              </div>
-            ) : null}
-
-            <div className="rounded-[1.35rem] border border-border/60 bg-background/80 p-4 shadow-sm">
-              <p className="text-xs uppercase tracking-[0.18em] text-muted-foreground">Assistant context</p>
-              <div className="mt-3 flex flex-wrap gap-2">
-                {selectedSources.map((source) => (
-                  <Badge key={source.id} variant="secondary" className="rounded-full">
-                    {source.title}
-                  </Badge>
-                ))}
-              </div>
-              <p className="mt-3 text-sm leading-6 text-muted-foreground">
-                Studio output is generated from the same prompt and source set, so the chat and the learning assets stay aligned.
-              </p>
-            </div>
-          </CardContent>
-        </Card>
-      </div>
-
-      <Dialog open={testDialogOpen} onOpenChange={setTestDialogOpen}>
-        <DialogContent className="sm:max-w-md">
-          <DialogHeader>
-            <DialogTitle>Take a practice test</DialogTitle>
-            <DialogDescription>
-              Choose a topic and how many questions you want. The AI will generate a test from your selected sources.
-            </DialogDescription>
-          </DialogHeader>
-          <div className="grid gap-4 py-2">
-            <div className="space-y-2">
-              <Label htmlFor="test-topic">Topic</Label>
-              <Input
-                id="test-topic"
-                value={testTopic}
-                onChange={(event) => setTestTopic(event.target.value)}
-                placeholder="e.g. Newton's laws, Data structures"
-                className="rounded-2xl"
-              />
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="test-count">Number of questions</Label>
-              <Input
-                id="test-count"
-                type="number"
-                min={1}
-                max={10}
-                value={testQuestionCount}
-                onChange={(event) => setTestQuestionCount(event.target.value)}
-                className="rounded-2xl"
-              />
+              ) : (
+                <div className="flex flex-1 items-center justify-center rounded-[1.5rem] border border-dashed border-white/10 bg-background/20 px-4 py-10 text-center">
+                  <div className="max-w-[220px] space-y-3">
+                    <div className="mx-auto flex h-11 w-11 items-center justify-center rounded-2xl border border-white/10 bg-background/50 text-muted-foreground">
+                      <FileText className="h-5 w-5" />
+                    </div>
+                    <div className="space-y-2">
+                      <p className="text-sm font-semibold text-foreground">Saved sources will appear here</p>
+                      <p className="text-sm leading-6 text-muted-foreground">
+                        Click Add source above to add PDFs, websites, text, videos, or audio files.
+                      </p>
+                    </div>
+                  </div>
+                </div>
+              )}
             </div>
           </div>
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setTestDialogOpen(false)}>Cancel</Button>
-            <Button onClick={startTest} disabled={sending}>
-              <GraduationCap className="mr-2 h-4 w-4" />
-              Start test
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+        </Card>
+
+        <Card className="flex min-h-[720px] overflow-hidden rounded-[1.75rem] border-white/10 bg-card/90 py-0 shadow-[0_20px_60px_rgba(0,0,0,0.25)] backdrop-blur-xl">
+          <div className="flex min-h-0 flex-1 flex-col">
+            <div className="flex items-center justify-between gap-3 border-b border-white/5 px-4 py-3">
+              <div>
+                <span className="text-sm font-semibold text-foreground">Chat</span>
+                {providerLabel ? <p className="text-[11px] text-muted-foreground">{providerLabel}</p> : null}
+              </div>
+              <Button variant="ghost" size="icon-sm" className="rounded-full text-muted-foreground">
+                <MoreVertical className="h-4 w-4" />
+              </Button>
+            </div>
+
+            <div className="flex min-h-0 flex-1 flex-col px-5 py-5">
+              <div className="flex-1 space-y-6 overflow-y-auto pr-1">
+                {!hasStarted ? (
+                  <>
+                    <div className="space-y-4 pt-8">
+                      <div className="text-4xl">👋</div>
+                      <div className="max-w-2xl space-y-4">
+                        <h2 className="text-balance text-3xl font-semibold tracking-tight text-foreground sm:text-4xl">
+                          Let&apos;s start your notebook...
+                        </h2>
+                        <p className="max-w-xl text-sm leading-7 text-muted-foreground sm:text-base">
+                          Ask questions, upload notes, and generate quizzes, flashcards, slides, and more with Grok and Gemini.
+                        </p>
+                      </div>
+                    </div>
+
+                    <div className="space-y-3">
+                      <p className="text-sm font-semibold text-foreground">What would you like this notebook to help you do?</p>
+                      <div className="flex flex-col gap-3 sm:max-w-md">
+                        {promptSuggestions.map((label) => (
+                          <Button
+                            key={label}
+                            variant="outline"
+                            className="h-11 justify-start rounded-full border-white/10 bg-background/40 px-5 text-sm font-medium shadow-none hover:bg-accent/60"
+                            onClick={() => void submitMessage(label)}
+                          >
+                            {label}
+                          </Button>
+                        ))}
+                      </div>
+                    </div>
+                  </>
+                ) : (
+                  <div className="space-y-4">
+                    {messages.map((message) => (
+                      <div
+                        key={message.id}
+                        className={`max-w-[92%] rounded-[1.25rem] px-4 py-3 text-sm leading-6 ${
+                          message.role === "user"
+                            ? "ml-auto bg-primary text-primary-foreground"
+                            : "mr-auto border border-white/10 bg-background/50 text-foreground"
+                        }`}
+                      >
+                        <p className="whitespace-pre-wrap">{message.content}</p>
+                      </div>
+                    ))}
+                    {loading ? (
+                      <div className="mr-auto flex items-center gap-2 rounded-[1.25rem] border border-white/10 bg-background/50 px-4 py-3 text-sm text-muted-foreground">
+                        <Loader2 className="h-4 w-4 animate-spin" />
+                        Thinking...
+                      </div>
+                    ) : null}
+                    <div ref={chatEndRef} />
+                  </div>
+                )}
+
+                {studioOutput?.followUps?.length ? (
+                  <div className="flex flex-wrap gap-2">
+                    {studioOutput.followUps.map((followUp) => (
+                      <Button
+                        key={followUp}
+                        variant="outline"
+                        size="sm"
+                        className="rounded-full border-white/10 bg-background/40"
+                        onClick={() => void submitMessage(followUp)}
+                      >
+                        {followUp}
+                      </Button>
+                    ))}
+                  </div>
+                ) : null}
+              </div>
+
+              <div className="mt-5 rounded-[1.75rem] border border-white/10 bg-background/40 p-4 shadow-[0_16px_48px_rgba(0,0,0,0.18)]">
+                <div className="flex items-end gap-3">
+                  <div className="min-w-0 flex-1">
+                    <label className="sr-only" htmlFor="study-prompt">
+                      Ask a question or create something
+                    </label>
+                    <textarea
+                      id="study-prompt"
+                      rows={2}
+                      value={input}
+                      onChange={(event) => setInput(event.target.value)}
+                      onKeyDown={(event) => {
+                        if (event.key === "Enter" && !event.shiftKey) {
+                          event.preventDefault();
+                          void submitMessage(input);
+                        }
+                      }}
+                      placeholder="Ask a question or create something"
+                      className="min-h-[56px] w-full resize-none rounded-2xl border border-transparent bg-transparent px-1 py-1 text-sm text-foreground outline-none placeholder:text-muted-foreground focus:border-transparent focus:ring-0"
+                    />
+                  </div>
+
+                  <div className="flex items-center gap-3 pb-1">
+                    <span className="whitespace-nowrap text-xs text-muted-foreground sm:text-sm">
+                      {sources.length} source{sources.length === 1 ? "" : "s"}
+                    </span>
+                    <Button size="icon-sm" className="rounded-full" disabled={loading || !input.trim()} onClick={() => void submitMessage(input)}>
+                      {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
+                    </Button>
+                  </div>
+                </div>
+              </div>
+
+              <p className="mt-3 text-center text-xs text-muted-foreground">
+                AI responses can be inaccurate; please double-check important facts.
+              </p>
+            </div>
+          </div>
+        </Card>
+
+        <Card className="flex min-h-[720px] overflow-hidden rounded-[1.75rem] border-white/10 bg-card/90 py-0 shadow-[0_20px_60px_rgba(0,0,0,0.25)] backdrop-blur-xl">
+          <div className="flex min-h-0 flex-1 flex-col">
+            <SectionTitle label="Studio" icon={Menu} />
+
+            <div className="flex min-h-0 flex-1 flex-col px-4 py-4">
+              <div className="rounded-[1.5rem] border border-white/10 bg-gradient-to-br from-indigo-500/25 via-slate-500/15 to-emerald-500/20 p-4">
+                <p className="text-sm font-semibold text-foreground">
+                  Create an Audio Overview in:
+                  <span className="ml-1 text-sm font-medium text-muted-foreground">
+                    हिंदी, বাংলা, ગુજરાતી, ಕನ್ನಡ, മലയാളം, मराठी, नेपाली, தமிழ், తెలుగు
+                  </span>
+                </p>
+              </div>
+
+              <div className="mt-4 grid grid-cols-2 gap-3">
+                {studioItems.map((item) => {
+                  const Icon = item.icon;
+                  const slug = STUDIO_SLUGS[item.title] ?? "chat";
+                  const active = selectedStudio === slug;
+                  return (
+                    <button
+                      key={item.title}
+                      type="button"
+                      disabled={loading}
+                      onClick={() => handleStudioClick(item.title)}
+                      className={`group relative overflow-hidden rounded-[1.25rem] border p-3 text-left transition-transform hover:-translate-y-0.5 ${
+                        active ? "border-primary/40 ring-1 ring-primary/30" : "border-white/10"
+                      } bg-gradient-to-br ${item.accent}`}
+                    >
+                      <div className="flex items-start justify-between gap-2">
+                        <div className="space-y-2">
+                          <div className="flex items-center gap-2">
+                            <span className="flex h-7 w-7 items-center justify-center rounded-lg bg-background/40 text-foreground">
+                              <Icon className="h-4 w-4" />
+                            </span>
+                            {item.beta ? (
+                              <span className="rounded-md bg-black px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-[0.16em] text-white">
+                                Beta
+                              </span>
+                            ) : null}
+                          </div>
+                          <div>
+                            <p className="text-sm font-semibold text-foreground">{item.title}</p>
+                            <p className="mt-1 text-xs leading-5 text-muted-foreground">{item.description}</p>
+                          </div>
+                        </div>
+                        <span className="mt-1 flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-background/40 text-muted-foreground transition-colors group-hover:text-foreground">
+                          <MoveRight className="h-4 w-4" />
+                        </span>
+                      </div>
+                    </button>
+                  );
+                })}
+              </div>
+
+              <div className="mt-auto border-t border-white/5 pt-4">
+                <StudioOutputPanel output={studioOutput} />
+
+                <div className="mt-4 flex flex-wrap items-center gap-3">
+                  <Button className="rounded-full px-5" onClick={() => setShowSourceForm(true)}>
+                    <Plus className="h-4 w-4" />
+                    Add note
+                  </Button>
+                  <Button
+                    variant="outline"
+                    className="rounded-full border-white/10 bg-background/40 px-5"
+                    disabled={loading}
+                    onClick={() => void submitMessage("Generate a study summary from my sources and current topic.")}
+                  >
+                    <Sparkles className="h-4 w-4" />
+                    Generate
+                  </Button>
+                </div>
+              </div>
+            </div>
+          </div>
+        </Card>
+      </div>
     </div>
   );
 }

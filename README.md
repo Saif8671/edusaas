@@ -64,6 +64,11 @@ For the backend, set:
 
 - `PORT` if you want to override the default `5000`
 - `FRONTEND_URL` if the frontend is not running on `http://localhost:3000`
+- `XAI_API_KEY` for Grok-powered chat in the student AI study assistant
+- `GEMINI_API_KEY` for Gemini-powered quiz, flashcards, slides, and source summarization
+- Optional: `GROK_MODEL` (default `grok-3-mini`), `GEMINI_MODEL` (default `gemini-2.0-flash`)
+
+Copy `backend/.env.example` to `backend/.env` and add your provider keys. Without keys, the study assistant falls back to demo responses.
 
 ### 3. Run the frontend
 

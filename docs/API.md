@@ -7,22 +7,36 @@ Returns API health status.
 - **Response**: `{ "status": "ok", "message": "..." }`
 
 ### `POST /api/study-assistant`
-Generates a study-focused chat response and studio preview for the student dashboard.
+Generates a study-focused chat response and studio assets for the student AI notebook.
 - **Body**:
   - `message`: string
   - `studentName`: string, optional
   - `course`: string, optional
   - `batch`: string, optional
-  - `studio`: string, optional
+  - `studio`: string, optional (`chat`, `quiz`, `flashcards`, `slide-deck`, `mind-map`, `reports`, `audio-overview`, `video-overview`, `infographic`, `data-table`)
   - `sources`: array of selected source objects, optional
+  - `testTopic`: string, optional
+  - `questionCount`: number, optional
 - **Response**:
-  - `reply`: main assistant response
-  - `keyPoints`: short revision takeaways
-  - `studySteps`: suggested learning steps
-  - `followUps`: quick follow-up prompts
-  - `studioPreview`: generated studio summary
+  - `reply`: main assistant response (Grok when configured)
+  - `keyPoints`, `studySteps`, `followUps`
+  - `quiz`, `flashcards`, `mindMap`, `slides`, `report`, `infographic`, `dataTable`
+  - `audioScript`, `videoOutline`
+  - `studioPreview`, `providers`, `demo`
 - **Env**:
   - `FRONTEND_URL`
+  - `XAI_API_KEY` for Grok chat replies
+  - `GEMINI_API_KEY` for structured studio outputs and source summarization
+  - `GROK_MODEL`, `GEMINI_MODEL` optional
+
+### `POST /api/study-assistant/sources/summarize`
+Summarizes uploaded notebook sources for the student dashboard.
+- **Body**:
+  - `sources`: array of `{ id, title, type, content, summary }`
+- **Response**:
+  - `sources`: array with generated summaries
+- **Env**:
+  - `GEMINI_API_KEY`
 
 ### `POST /api/notifications/email`
 Sends an email through Resend from the backend.
